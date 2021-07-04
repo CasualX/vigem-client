@@ -1,0 +1,304 @@
+#![allow(non_snake_case)]
+
+use std::{mem, ptr};
+use winapi::um::handleapi::*;
+use winapi::um::ioapiset::*;
+use winapi::um::minwinbase::*;
+use winapi::um::synchapi::*;
+use winapi::um::errhandlingapi::*;
+use winapi::shared::ntdef::HANDLE;
+use winapi::shared::guiddef::GUID;
+
+pub static GUID_DEVINTERFACE: GUID = GUID {
+	Data1: 0x96E42B22, Data2: 0xF5E9, Data3: 0x42F8,
+	Data4: [0xB0, 0x43, 0xED, 0x0F, 0x93, 0x2F, 0x01, 0x4F],
+};
+
+// IO control codes
+// const IOCTL_BASE: u32 = 0x801;
+pub const IOCTL_PLUGIN_TARGET: u32 = 0x2AA004; //IOCTL_BASE + 0x000;
+pub const IOCTL_UNPLUG_TARGET: u32 = 0x2AA008; //IOCTL_BASE + 0x001;
+pub const IOCTL_CHECK_VERSION: u32 = 0x2AA00C; //IOCTL_BASE + 0x002;
+pub const IOCTL_WAIT_DEVICE_READY: u32 = 0x2AA010; //IOCTL_BASE + 0x003;
+pub const IOCTL_XUSB_SUBMIT_REPORT: u32 = 0x2AA808; //IOCTL_BASE + 0x201;
+#[cfg(feature = "unstable")]
+pub const IOCTL_DS4_SUBMIT_REPORT: u32 = 0x2AA80C; //IOCTL_BASE + 0x202;
+pub const IOCTL_XUSB_GET_USER_INDEX: u32 = 0x2AE81C; //IOCTL_BASE + 0x206;
+
+#[repr(C)]
+pub struct CheckVersion {
+	pub Size: u32,
+	pub Version: u32,
+}
+impl CheckVersion {
+	pub const COMMON: u32 = 0x0001;
+	#[inline]
+	pub const fn common() -> CheckVersion {
+		CheckVersion {
+			Size: mem::size_of::<CheckVersion>() as u32,
+			Version: Self::COMMON,
+		}
+	}
+	#[inline]
+	pub unsafe fn ioctl(&mut self, device: HANDLE) -> bool {
+		let mut transferred = 0;
+		let mut overlapped: OVERLAPPED = mem::zeroed();
+		overlapped.hEvent = CreateEventW(ptr::null_mut(), 0, 0, ptr::null());
+
+		DeviceIoControl(
+			device,
+			IOCTL_CHECK_VERSION,
+			self as *mut _ as _,
+			mem::size_of_val(self) as u32,
+			ptr::null_mut(),
+			0,
+			&mut transferred,
+			&mut overlapped);
+
+		let result = GetOverlappedResult(device, &mut overlapped, &mut transferred, 1);
+		CloseHandle(overlapped.hEvent);
+		return result != 0;
+	}
+}
+
+pub const TARGET_TYPE_XBOX360_WIRED: i32 = 0;
+pub const TARGET_TYPE_DUALSHOCK4_WIRED: i32 = 2;
+
+#[repr(C)]
+pub struct PluginTarget {
+	pub Size: u32,
+	pub SerialNo: u32,
+	pub TargetType: i32,
+	pub VendorId: u16,
+	pub ProductId: u16,
+}
+impl PluginTarget {
+	#[inline]
+	pub const fn new(serial_no: u32, target_type: i32, vendor_id: u16, product_id: u16) -> PluginTarget {
+		PluginTarget {
+			Size: mem::size_of::<PluginTarget>() as u32,
+			SerialNo: serial_no,
+			TargetType: target_type,
+			VendorId: vendor_id,
+			ProductId: product_id,
+		}
+	}
+	#[inline]
+	pub const fn x360_wired(serial_no: u32, vendor_id: u16, product_id: u16) -> PluginTarget {
+		PluginTarget::new(serial_no, TARGET_TYPE_XBOX360_WIRED, vendor_id, product_id)
+	}
+	#[inline]
+	pub const fn ds4_wired(serial_no: u32, vendor_id: u16, product_id: u16) -> PluginTarget {
+		PluginTarget::new(serial_no, TARGET_TYPE_DUALSHOCK4_WIRED, vendor_id, product_id)
+	}
+	#[inline]
+	pub unsafe fn ioctl(&mut self, device: HANDLE) -> Result<(), u32> {
+		let mut transferred = 0;
+		let mut overlapped: OVERLAPPED = mem::zeroed();
+		overlapped.hEvent = CreateEventW(ptr::null_mut(), 0, 0, ptr::null());
+
+		DeviceIoControl(
+			device,
+			IOCTL_PLUGIN_TARGET,
+			self as *mut _ as _,
+			mem::size_of_val(self) as u32,
+			ptr::null_mut(),
+			0,
+			&mut transferred,
+			&mut overlapped);
+
+		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
+		else { Err(GetLastError()) };
+
+		CloseHandle(overlapped.hEvent);
+		result
+	}
+}
+
+#[repr(C)]
+pub struct WaitDeviceReady {
+	pub Size: u32,
+	pub SerialNo: u32,
+}
+impl WaitDeviceReady {
+	#[inline]
+	pub const fn new(serial_no: u32) -> WaitDeviceReady {
+		WaitDeviceReady {
+			Size: mem::size_of::<WaitDeviceReady>() as u32,
+			SerialNo: serial_no,
+		}
+	}
+	#[inline]
+	pub unsafe fn ioctl(&mut self, device: HANDLE) -> Result<(), u32> {
+		let mut transferred = 0;
+		let mut overlapped: OVERLAPPED = mem::zeroed();
+		overlapped.hEvent = CreateEventW(ptr::null_mut(), 0, 0, ptr::null());
+
+		DeviceIoControl(
+			device,
+			IOCTL_WAIT_DEVICE_READY,
+			self as *mut _ as _,
+			mem::size_of_val(self) as u32,
+			ptr::null_mut(),
+			0,
+			&mut transferred,
+			&mut overlapped);
+
+		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
+		else { Err(GetLastError()) };
+		CloseHandle(overlapped.hEvent);
+		result
+	}
+}
+
+#[repr(C)]
+pub struct UnplugTarget {
+	pub Size: u32,
+	pub SerialNo: u32,
+}
+impl UnplugTarget {
+	#[inline]
+	pub const fn new(serial_no: u32) -> UnplugTarget {
+		UnplugTarget {
+			Size: mem::size_of::<UnplugTarget>() as u32,
+			SerialNo: serial_no,
+		}
+	}
+	#[inline]
+	pub unsafe fn ioctl(&mut self, device: HANDLE) -> Result<(), u32> {
+		let mut transferred = 0;
+		let mut overlapped: OVERLAPPED = mem::zeroed();
+		overlapped.hEvent = CreateEventW(ptr::null_mut(), 0, 0, ptr::null());
+
+		DeviceIoControl(
+			device,
+			IOCTL_UNPLUG_TARGET,
+			self as *mut _ as _,
+			mem::size_of_val(self) as u32,
+			ptr::null_mut(),
+			0,
+			&mut transferred,
+			&mut overlapped);
+
+		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
+		else { Err(GetLastError()) };
+		CloseHandle(overlapped.hEvent);
+		result
+	}
+}
+
+#[repr(C)]
+pub struct XUsbSubmitReport {
+	pub Size: u32,
+	pub SerialNo: u32,
+	pub Report: crate::XGamepad,
+}
+impl XUsbSubmitReport {
+	#[inline]
+	pub const fn new(serial_no: u32, report: crate::XGamepad) -> XUsbSubmitReport {
+		XUsbSubmitReport {
+			Size: mem::size_of::<XUsbSubmitReport>() as u32,
+			SerialNo: serial_no,
+			Report: report,
+		}
+	}
+	#[inline]
+	pub unsafe fn ioctl(&mut self, device: HANDLE) -> Result<(), u32> {
+		let mut transferred = 0;
+		let mut overlapped: OVERLAPPED = mem::zeroed();
+		overlapped.hEvent = CreateEventW(ptr::null_mut(), 0, 0, ptr::null());
+
+		DeviceIoControl(
+			device,
+			IOCTL_XUSB_SUBMIT_REPORT,
+			self as *mut _ as _,
+			mem::size_of_val(self) as u32,
+			ptr::null_mut(),
+			0,
+			&mut transferred,
+			&mut overlapped);
+
+		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
+		else { Err(GetLastError()) };
+		CloseHandle(overlapped.hEvent);
+		result
+	}
+}
+
+#[cfg(feature = "unstable")]
+#[repr(C)]
+pub struct DS4SubmitReport {
+	pub Size: u32,
+	pub SerialNo: u32,
+	pub Report: crate::DS4Report,
+}
+#[cfg(feature = "unstable")]
+impl DS4SubmitReport {
+	#[inline]
+	pub const fn new(serial_no: u32, report: crate::DS4Report) -> DS4SubmitReport {
+		DS4SubmitReport {
+			Size: mem::size_of::<DS4SubmitReport>() as u32,
+			SerialNo: serial_no,
+			Report: report,
+		}
+	}
+	#[inline]
+	pub unsafe fn ioctl(&mut self, device: HANDLE) -> Result<(), u32> {
+		let mut transferred = 0;
+		let mut overlapped: OVERLAPPED = mem::zeroed();
+		overlapped.hEvent = CreateEventW(ptr::null_mut(), 0, 0, ptr::null());
+
+		DeviceIoControl(
+			device,
+			IOCTL_DS4_SUBMIT_REPORT,
+			self as *mut _ as _,
+			mem::size_of_val(self) as u32,
+			ptr::null_mut(),
+			0,
+			&mut transferred,
+			&mut overlapped);
+
+		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
+		else { Err(GetLastError()) };
+		CloseHandle(overlapped.hEvent);
+		result
+	}
+}
+
+#[repr(C)]
+pub struct XUsbGetUserIndex {
+	pub Size: u32,
+	pub SerialNo: u32,
+	pub UserIndex: u32,
+}
+impl XUsbGetUserIndex {
+	#[inline]
+	pub const fn new(serial_no: u32) -> XUsbGetUserIndex {
+		XUsbGetUserIndex {
+			Size: mem::size_of::<XUsbGetUserIndex>() as u32,
+			SerialNo: serial_no,
+			UserIndex: 0,
+		}
+	}
+	#[inline]
+	pub unsafe fn ioctl(&mut self, device: HANDLE) -> Result<(), u32> {
+		let mut transferred = 0;
+		let mut overlapped: OVERLAPPED = mem::zeroed();
+		overlapped.hEvent = CreateEventW(ptr::null_mut(), 0, 0, ptr::null());
+
+		DeviceIoControl(
+			device,
+			IOCTL_XUSB_GET_USER_INDEX,
+			self as *mut _ as _,
+			mem::size_of_val(self) as u32,
+			self as *mut _ as _,
+			mem::size_of_val(self) as u32,
+			&mut transferred,
+			&mut overlapped);
+
+		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
+		else { Err(GetLastError()) };
+		CloseHandle(overlapped.hEvent);
+		result
+	}
+}

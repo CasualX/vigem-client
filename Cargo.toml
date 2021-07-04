@@ -1,0 +1,19 @@
+[package]
+name = "vigem-client"
+version = "0.1.0"
+authors = ["Casper <CasualX@users.noreply.github.com>"]
+edition = "2018"
+license = "MIT"
+
+description = "ViGEm client API in pure Rust."
+documentation = "https://docs.rs/vigem-client/"
+repository = "https://github.com/CasualX/vigem-client"
+readme = "readme.md"
+categories = ["api-bindings"]
+
+[features]
+# Include the unstable DualShock4Wired target
+unstable = []
+
+[dependencies]
+winapi = { version = "0.3", features = ["std", "handleapi", "setupapi", "fileapi", "winbase", "ioapiset", "synchapi", "errhandlingapi", "xinput", "winerror"] }
