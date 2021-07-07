@@ -92,10 +92,10 @@ impl PluginTarget {
 		PluginTarget::new(serial_no, TARGET_TYPE_DUALSHOCK4_WIRED, vendor_id, product_id)
 	}
 	#[inline]
-	pub unsafe fn ioctl(&mut self, device: HANDLE) -> Result<(), u32> {
+	pub unsafe fn ioctl(&mut self, device: HANDLE, event: HANDLE) -> Result<(), u32> {
 		let mut transferred = 0;
 		let mut overlapped: OVERLAPPED = mem::zeroed();
-		overlapped.hEvent = CreateEventW(ptr::null_mut(), 0, 0, ptr::null());
+		overlapped.hEvent = event;
 
 		DeviceIoControl(
 			device,
@@ -110,7 +110,6 @@ impl PluginTarget {
 		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
 		else { Err(GetLastError()) };
 
-		CloseHandle(overlapped.hEvent);
 		result
 	}
 }
@@ -129,10 +128,10 @@ impl WaitDeviceReady {
 		}
 	}
 	#[inline]
-	pub unsafe fn ioctl(&mut self, device: HANDLE) -> Result<(), u32> {
+	pub unsafe fn ioctl(&mut self, device: HANDLE, event: HANDLE) -> Result<(), u32> {
 		let mut transferred = 0;
 		let mut overlapped: OVERLAPPED = mem::zeroed();
-		overlapped.hEvent = CreateEventW(ptr::null_mut(), 0, 0, ptr::null());
+		overlapped.hEvent = event;
 
 		DeviceIoControl(
 			device,
@@ -146,7 +145,6 @@ impl WaitDeviceReady {
 
 		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
 		else { Err(GetLastError()) };
-		CloseHandle(overlapped.hEvent);
 		result
 	}
 }
@@ -165,10 +163,10 @@ impl UnplugTarget {
 		}
 	}
 	#[inline]
-	pub unsafe fn ioctl(&mut self, device: HANDLE) -> Result<(), u32> {
+	pub unsafe fn ioctl(&mut self, device: HANDLE, event: HANDLE) -> Result<(), u32> {
 		let mut transferred = 0;
 		let mut overlapped: OVERLAPPED = mem::zeroed();
-		overlapped.hEvent = CreateEventW(ptr::null_mut(), 0, 0, ptr::null());
+		overlapped.hEvent = event;
 
 		DeviceIoControl(
 			device,
@@ -182,7 +180,6 @@ impl UnplugTarget {
 
 		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
 		else { Err(GetLastError()) };
-		CloseHandle(overlapped.hEvent);
 		result
 	}
 }
@@ -203,10 +200,10 @@ impl XUsbSubmitReport {
 		}
 	}
 	#[inline]
-	pub unsafe fn ioctl(&mut self, device: HANDLE) -> Result<(), u32> {
+	pub unsafe fn ioctl(&mut self, device: HANDLE, event: HANDLE) -> Result<(), u32> {
 		let mut transferred = 0;
 		let mut overlapped: OVERLAPPED = mem::zeroed();
-		overlapped.hEvent = CreateEventW(ptr::null_mut(), 0, 0, ptr::null());
+		overlapped.hEvent = event;
 
 		DeviceIoControl(
 			device,
@@ -220,7 +217,6 @@ impl XUsbSubmitReport {
 
 		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
 		else { Err(GetLastError()) };
-		CloseHandle(overlapped.hEvent);
 		result
 	}
 }
@@ -243,10 +239,10 @@ impl DS4SubmitReport {
 		}
 	}
 	#[inline]
-	pub unsafe fn ioctl(&mut self, device: HANDLE) -> Result<(), u32> {
+	pub unsafe fn ioctl(&mut self, device: HANDLE, event: HANDLE) -> Result<(), u32> {
 		let mut transferred = 0;
 		let mut overlapped: OVERLAPPED = mem::zeroed();
-		overlapped.hEvent = CreateEventW(ptr::null_mut(), 0, 0, ptr::null());
+		overlapped.hEvent = event;
 
 		DeviceIoControl(
 			device,
@@ -260,7 +256,6 @@ impl DS4SubmitReport {
 
 		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
 		else { Err(GetLastError()) };
-		CloseHandle(overlapped.hEvent);
 		result
 	}
 }
@@ -281,10 +276,10 @@ impl XUsbGetUserIndex {
 		}
 	}
 	#[inline]
-	pub unsafe fn ioctl(&mut self, device: HANDLE) -> Result<(), u32> {
+	pub unsafe fn ioctl(&mut self, device: HANDLE, event: HANDLE) -> Result<(), u32> {
 		let mut transferred = 0;
 		let mut overlapped: OVERLAPPED = mem::zeroed();
-		overlapped.hEvent = CreateEventW(ptr::null_mut(), 0, 0, ptr::null());
+		overlapped.hEvent = event;
 
 		DeviceIoControl(
 			device,
@@ -298,7 +293,6 @@ impl XUsbGetUserIndex {
 
 		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
 		else { Err(GetLastError()) };
-		CloseHandle(overlapped.hEvent);
 		result
 	}
 }

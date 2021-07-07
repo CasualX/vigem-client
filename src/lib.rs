@@ -109,11 +109,13 @@ The Notifications API is currently not implemented.
 */
 
 mod bus;
+mod event;
 mod error;
 mod client;
 mod x360;
 mod ds4;
 
+use self::event::*;
 pub use self::error::Error;
 pub use self::client::*;
 pub use self::x360::*;

@@ -64,6 +64,7 @@ impl Default for DS4Report {
 /// A virtual Sony DualShock 4 (wired).
 pub struct DualShock4Wired<CL: Borrow<Client>> {
 	client: CL,
+	event: Event,
 	serial_no: u32,
 	id: TargetId,
 }
@@ -72,7 +73,8 @@ impl<CL: Borrow<Client>> DualShock4Wired<CL> {
 	/// Creates a new instance.
 	#[inline]
 	pub fn new(client: CL, id: TargetId) -> DualShock4Wired<CL> {
-		DualShock4Wired { client, serial_no: 0, id }
+		let event = Event::new(false, false);
+		DualShock4Wired { client, event, serial_no: 0, id }
 	}
 
 	/// Returns if the controller is plugged in.
@@ -117,7 +119,7 @@ impl<CL: Borrow<Client>> DualShock4Wired<CL> {
 			let device = self.client.borrow().device;
 
 			// Yes this is how the driver is implemented
-			while plugin.ioctl(device).is_err() {
+			while plugin.ioctl(device, self.event.handle).is_err() {
 				plugin.SerialNo += 1;
 				if plugin.SerialNo >= u16::MAX as u32 {
 					return Err(Error::NoFreeSlot);
@@ -140,7 +142,7 @@ impl<CL: Borrow<Client>> DualShock4Wired<CL> {
 		unsafe {
 			let mut unplug = bus::UnplugTarget::new(self.serial_no);
 			let device = self.client.borrow().device;
-			unplug.ioctl(device)?;
+			unplug.ioctl(device, self.event.handle)?;
 		}
 
 		self.serial_no = 0;
@@ -159,7 +161,7 @@ impl<CL: Borrow<Client>> DualShock4Wired<CL> {
 		unsafe {
 			let mut wait = bus::WaitDeviceReady::new(self.serial_no);
 			let device = self.client.borrow().device;
-			wait.ioctl(device)?;
+			wait.ioctl(device, self.event.handle)?;
 		}
 
 		Ok(())
@@ -176,7 +178,7 @@ impl<CL: Borrow<Client>> DualShock4Wired<CL> {
 		unsafe {
 			let mut dsr = bus::DS4SubmitReport::new(self.serial_no, *report);
 			let device = self.client.borrow().device;
-			dsr.ioctl(device)?;
+			dsr.ioctl(device, self.event.handle)?;
 		}
 
 		Ok(())

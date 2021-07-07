@@ -175,6 +175,7 @@ impl AsMut<XINPUT_GAMEPAD> for XGamepad {
 /// A virtual Microsoft Xbox 360 Controller (wired).
 pub struct Xbox360Wired<CL: Borrow<Client>> {
 	client: CL,
+	event: Event,
 	serial_no: u32,
 	id: TargetId,
 }
@@ -183,7 +184,8 @@ impl<CL: Borrow<Client>> Xbox360Wired<CL> {
 	/// Creates a new instance.
 	#[inline]
 	pub fn new(client: CL, id: TargetId) -> Xbox360Wired<CL> {
-		Xbox360Wired { client, serial_no: 0, id }
+		let event = Event::new(false, false);
+		Xbox360Wired { client, event, serial_no: 0, id }
 	}
 
 	/// Returns if the controller is plugged in.
@@ -227,7 +229,7 @@ impl<CL: Borrow<Client>> Xbox360Wired<CL> {
 		let device = self.client.borrow().device;
 
 		// Yes this is how the driver is implemented
-		while unsafe { plugin.ioctl(device) }.is_err() {
+		while unsafe { plugin.ioctl(device, self.event.handle) }.is_err() {
 			plugin.SerialNo += 1;
 			if plugin.SerialNo >= u16::MAX as u32 {
 				return Err(Error::NoFreeSlot);
@@ -248,7 +250,7 @@ impl<CL: Borrow<Client>> Xbox360Wired<CL> {
 		unsafe {
 			let mut unplug = bus::UnplugTarget::new(self.serial_no);
 			let device = self.client.borrow().device;
-			unplug.ioctl(device)?;
+			unplug.ioctl(device, self.event.handle)?;
 		}
 
 		self.serial_no = 0;
@@ -267,7 +269,7 @@ impl<CL: Borrow<Client>> Xbox360Wired<CL> {
 		unsafe {
 			let mut wait = bus::WaitDeviceReady::new(self.serial_no);
 			let device = self.client.borrow().device;
-			wait.ioctl(device)?;
+			wait.ioctl(device, self.event.handle)?;
 		}
 
 		Ok(())
@@ -283,7 +285,7 @@ impl<CL: Borrow<Client>> Xbox360Wired<CL> {
 		let user_index = unsafe {
 			let mut gui = bus::XUsbGetUserIndex::new(self.serial_no);
 			let device = self.client.borrow().device;
-			match gui.ioctl(device) {
+			match gui.ioctl(device, self.event.handle) {
 				Ok(()) => (),
 				// Err(winerror::ERROR_ACCESS_DENIED) => return Err(Error::InvalidTarget),
 				Err(winerror::ERROR_INVALID_DEVICE_OBJECT_PARAMETER) => return Err(Error::UserIndexOutOfRange),
@@ -306,7 +308,7 @@ impl<CL: Borrow<Client>> Xbox360Wired<CL> {
 		unsafe {
 			let mut xsr = bus::XUsbSubmitReport::new(self.serial_no, *gamepad);
 			let device = self.client.borrow().device;
-			match xsr.ioctl(device) {
+			match xsr.ioctl(device, self.event.handle) {
 				Ok(()) => Ok(()),
 				Err(winerror::ERROR_DEV_NOT_EXIST) => Err(Error::TargetNotReady),
 				Err(err) => Err(Error::WinError(err)),
