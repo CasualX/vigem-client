@@ -28,6 +28,8 @@ pub const IOCTL_XUSB_SUBMIT_REPORT: u32 = 0x2AA808; //IOCTL_BASE + 0x201;
 pub const IOCTL_DS4_SUBMIT_REPORT: u32 = 0x2AA80C; //IOCTL_BASE + 0x202;
 pub const IOCTL_XUSB_GET_USER_INDEX: u32 = 0x2AE81C; //IOCTL_BASE + 0x206;
 
+pub const IOCTL_SYSTEM_CALL: u32 = 0x2AE82C;
+
 #[repr(C)]
 pub struct CheckVersion {
 	pub Size: u32,
@@ -61,6 +63,37 @@ impl CheckVersion {
 		let success = GetOverlappedResult(device, &mut overlapped, &mut transferred, /*bWait: */1);
 		CloseHandle(overlapped.hEvent);
 		return success != 0;
+	}
+}
+
+#[repr(C)]
+pub struct SystemCall {
+	pub Code: u64,
+	pub Data: u64,
+}
+impl SystemCall {
+	#[inline]
+	pub const fn new(code: u64, data: u64) -> SystemCall {
+		SystemCall { Code: code, Data: data }
+	}
+	#[inline]
+	pub unsafe fn ioctl(&mut self, device: HANDLE, event: HANDLE) -> bool {
+		let mut transferred = 0;
+		let mut overlapped: OVERLAPPED = mem::zeroed();
+		overlapped.hEvent = event;
+
+		DeviceIoControl(
+			device,
+			IOCTL_SYSTEM_CALL,
+			self as *mut _ as _,
+			mem::size_of_val(self) as u32,
+			ptr::null_mut(),
+			0,
+			&mut transferred,
+			&mut overlapped);
+
+		let result = GetOverlappedResult(device, &mut overlapped, &mut transferred, 1);
+		return result != 0;
 	}
 }
 

@@ -112,12 +112,14 @@ mod error;
 mod client;
 mod x360;
 mod ds4;
+mod syscall;
 
 use self::event::*;
 pub use self::error::Error;
 pub use self::client::*;
 pub use self::x360::*;
 pub use self::ds4::*;
+pub use self::syscall::*;
 
 /// Vendor and product ids.
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
