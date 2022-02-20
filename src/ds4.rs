@@ -1,4 +1,4 @@
-use std::{fmt, mem};
+use std::{fmt, mem, ptr};
 use std::borrow::Borrow;
 use crate::*;
 
@@ -102,6 +102,7 @@ impl<CL: Borrow<Client>> DualShock4Wired<CL> {
 
 		unsafe {
 			let client = (&self.client as *const CL).read();
+			ptr::drop_in_place(&mut self.event);
 			mem::forget(self);
 			client
 		}

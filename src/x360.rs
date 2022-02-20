@@ -1,4 +1,4 @@
-use std::{fmt, mem};
+use std::{fmt, mem, ptr};
 use std::borrow::Borrow;
 use winapi::um::xinput::XINPUT_GAMEPAD;
 use winapi::shared::winerror;
@@ -213,6 +213,7 @@ impl<CL: Borrow<Client>> Xbox360Wired<CL> {
 
 		unsafe {
 			let client = (&self.client as *const CL).read();
+			ptr::drop_in_place(&mut self.event);
 			mem::forget(self);
 			client
 		}

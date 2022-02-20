@@ -103,12 +103,14 @@ unsafe impl Sync for Client {}
 unsafe impl Send for Client {}
 
 impl AsRawHandle for Client {
+	#[inline]
 	fn as_raw_handle(&self) -> HANDLE {
 		self.device
 	}
 }
 
 impl Drop for Client {
+	#[inline]
 	fn drop(&mut self) {
 		unsafe {
 			CloseHandle(self.device);

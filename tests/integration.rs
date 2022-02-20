@@ -1,6 +1,12 @@
 use vigem_client as vigem;
 
 #[test]
+fn connection() {
+	let _client1 = vigem::Client::connect().unwrap();
+	let _client2 = vigem::Client::connect().unwrap();
+}
+
+#[test]
 fn simple_success() {
 	let mut target = vigem::Xbox360Wired::new(
 		vigem::Client::connect().unwrap(),
