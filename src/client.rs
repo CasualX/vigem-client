@@ -1,5 +1,5 @@
 use std::{mem, ptr};
-use std::os::windows::io::AsRawHandle;
+use std::os::windows::io as win_io;
 use winapi::um::handleapi::*;
 use winapi::um::setupapi::*;
 use winapi::um::fileapi::*;
@@ -102,10 +102,22 @@ impl Client {
 unsafe impl Sync for Client {}
 unsafe impl Send for Client {}
 
-impl AsRawHandle for Client {
+impl win_io::AsRawHandle for Client {
 	#[inline]
 	fn as_raw_handle(&self) -> HANDLE {
 		self.device
+	}
+}
+impl win_io::IntoRawHandle for Client {
+	#[inline]
+	fn into_raw_handle(self) -> HANDLE {
+		self.device
+	}
+}
+impl win_io::FromRawHandle for Client {
+	#[inline]
+	unsafe fn from_raw_handle(device: HANDLE) -> Client {
+		Client { device }
 	}
 }
 
