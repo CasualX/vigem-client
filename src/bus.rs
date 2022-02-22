@@ -20,6 +20,7 @@ pub const IOCTL_PLUGIN_TARGET: u32 = 0x2AA004; //IOCTL_BASE + 0x000;
 pub const IOCTL_UNPLUG_TARGET: u32 = 0x2AA008; //IOCTL_BASE + 0x001;
 pub const IOCTL_CHECK_VERSION: u32 = 0x2AA00C; //IOCTL_BASE + 0x002;
 pub const IOCTL_WAIT_DEVICE_READY: u32 = 0x2AA010; //IOCTL_BASE + 0x003;
+pub const IOCTL_XUSB_REQUEST_NOTIFICATION : u32 = 0x2AE804; //IOCTL_BASE + 0x200 (RW);
 pub const IOCTL_XUSB_SUBMIT_REPORT: u32 = 0x2AA808; //IOCTL_BASE + 0x201;
 #[cfg(feature = "unstable")]
 pub const IOCTL_DS4_SUBMIT_REPORT: u32 = 0x2AA80C; //IOCTL_BASE + 0x202;
@@ -212,6 +213,47 @@ impl XUsbSubmitReport {
 			mem::size_of_val(self) as u32,
 			ptr::null_mut(),
 			0,
+			&mut transferred,
+			&mut overlapped);
+
+		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
+		else { Err(GetLastError()) };
+		result
+	}
+}
+
+#[repr(C)]
+pub struct XUsbRequestNotification {
+	pub Size: u32,
+	pub SerialNo: u32,
+	pub LargeMotor: u8,
+	pub SmallMotor: u8,
+	pub LedNumber: u8,
+}
+impl XUsbRequestNotification {
+	#[inline]
+	pub const fn new(serial_no: u32) -> XUsbRequestNotification {
+		XUsbRequestNotification {
+			Size: mem::size_of::<XUsbRequestNotification>() as u32,
+			SerialNo: serial_no,
+			LargeMotor: 0,
+			SmallMotor: 0,
+			LedNumber: 0,
+		}
+	}
+	#[inline]
+	pub unsafe fn ioctl(&mut self, device: HANDLE, event: HANDLE) -> Result<(), u32> {
+		let mut transferred = 0;
+		let mut overlapped: OVERLAPPED = mem::zeroed();
+		overlapped.hEvent = event;
+
+		DeviceIoControl(
+			device,
+			IOCTL_XUSB_REQUEST_NOTIFICATION,
+			self as *mut _ as _,
+			mem::size_of_val(self) as u32,
+			self as *mut _ as _,
+			mem::size_of_val(self) as u32,
 			&mut transferred,
 			&mut overlapped);
 

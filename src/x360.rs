@@ -1,5 +1,8 @@
 use std::{fmt, mem, ptr};
 use std::borrow::Borrow;
+use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread::{self, JoinHandle};
 use winapi::um::xinput::XINPUT_GAMEPAD;
 use winapi::shared::winerror;
 use crate::*;
@@ -172,12 +175,21 @@ impl AsMut<XINPUT_GAMEPAD> for XGamepad {
 	}
 }
 
+/// Notification receiver from a Xbox360 controller
+pub trait Xbox360WiredNotificationHandler: Send {
+	/// Notification received
+	fn on_notification(&mut self, large_motor: u8, small_motor: u8, led_number: u8);
+}
+
 /// A virtual Microsoft Xbox 360 Controller (wired).
 pub struct Xbox360Wired<CL: Borrow<Client>> {
 	client: CL,
 	event: Event,
 	serial_no: u32,
 	id: TargetId,
+
+	notification_handler: Arc<Mutex<Option<Box<dyn Xbox360WiredNotificationHandler>>>>,
+	notification_thread_handle: Option<JoinHandle<()>>,
 }
 
 impl<CL: Borrow<Client>> Xbox360Wired<CL> {
@@ -185,7 +197,7 @@ impl<CL: Borrow<Client>> Xbox360Wired<CL> {
 	#[inline]
 	pub fn new(client: CL, id: TargetId) -> Xbox360Wired<CL> {
 		let event = Event::new(false, false);
-		Xbox360Wired { client, event, serial_no: 0, id }
+		Xbox360Wired { client, event, serial_no: 0, id, notification_handler: Arc::new(Mutex::new(None)), notification_thread_handle: None }
 	}
 
 	/// Returns if the controller is plugged in.
@@ -254,6 +266,10 @@ impl<CL: Borrow<Client>> Xbox360Wired<CL> {
 			unplug.ioctl(device, self.event.handle)?;
 		}
 
+		if let Some(thread_handle) = self.notification_thread_handle.take() {
+			thread_handle.join().unwrap();
+		}
+
 		self.serial_no = 0;
 		Ok(())
 	}
@@ -315,6 +331,59 @@ impl<CL: Borrow<Client>> Xbox360Wired<CL> {
 				Err(err) => Err(Error::WinError(err)),
 			}
 		}
+	}
+
+	/// Register notification handler.
+	#[inline(never)]
+	pub fn register_notification(&mut self, handler: Box<dyn Xbox360WiredNotificationHandler>) -> Result<(), Error> {
+		{
+			let mut notification_handler = self.notification_handler.lock().unwrap();
+			*notification_handler = Some(handler);
+		}
+		let thread_notification_handler = self.notification_handler.clone();
+
+		let serial_no = self.serial_no;
+		let device = AtomicPtr::new(self.client.borrow().device);
+
+		let join_handle = thread::spawn(move || {
+			let device = device.load(Ordering::Relaxed);
+
+			unsafe {
+				let event = Event::new(false, false);
+				let mut xrn = bus::XUsbRequestNotification::new(serial_no);
+
+				loop {
+					match xrn.ioctl(device, event.handle) {
+						Ok(()) => {},
+						Err(_) => {
+							return;
+						},
+					}
+
+					let mut notification_handler = thread_notification_handler.lock().unwrap();
+					match &mut *notification_handler {
+						Some(handler) => {
+							handler.on_notification(xrn.LargeMotor, xrn.SmallMotor, xrn.LedNumber);
+						}
+						None => {
+							return;
+						}
+					}
+				}
+			}
+		});
+
+		self.notification_thread_handle = Some(join_handle);
+
+		Ok(())
+	}
+
+	/// Unregister notification handler.
+	pub fn unregister_notification(&mut self) -> Result<(), Error> {
+		let mut notification_handler = self.notification_handler.lock().unwrap();
+		*notification_handler = None;
+
+		Ok(())
 	}
 }
 
