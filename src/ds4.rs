@@ -3,7 +3,7 @@ use std::borrow::Borrow;
 use crate::*;
 
 /// DualShock4 HID Input report.
-#[cfg(feature = "unstable")]
+#[cfg(feature = "unstable_ds4")]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 #[repr(C)]
 pub struct DS4Report {
@@ -16,7 +16,7 @@ pub struct DS4Report {
 	pub trigger_l: u8,
 	pub trigger_r: u8,
 }
-#[cfg(feature = "unstable")]
+#[cfg(feature = "unstable_ds4")]
 impl Default for DS4Report {
 	#[inline]
 	fn default() -> Self {
@@ -169,7 +169,7 @@ impl<CL: Borrow<Client>> DualShock4Wired<CL> {
 	}
 
 	/// Updates the virtual controller state.
-	#[cfg(feature = "unstable")]
+	#[cfg(feature = "unstable_ds4")]
 	#[inline(never)]
 	pub fn update(&mut self, report: &DS4Report) -> Result<(), Error> {
 		if !self.is_attached() {

@@ -9,7 +9,7 @@ use winapi::um::errhandlingapi::*;
 use winapi::shared::ntdef::HANDLE;
 use crate::*;
 
-/// The ViGEmBus client connection.
+/// The ViGEmBus service connection.
 #[derive(Debug)]
 pub struct Client {
 	pub(crate) device: HANDLE,
@@ -95,6 +95,24 @@ impl Client {
 
 			SetupDiDestroyDeviceInfoList(device_info_set);
 			Err(error)
+		}
+	}
+
+	/// Duplicates the ViGEmBus service handle.
+	#[inline]
+	pub fn try_clone(&self) -> Result<Client, Error> {
+		unsafe {
+			let process_handle = (!0) as *mut _;
+			let mut target_handle = mem::MaybeUninit::uninit();
+			let success = DuplicateHandle(
+				process_handle, self.device,
+				process_handle, target_handle.as_mut_ptr(),
+				GENERIC_READ | GENERIC_WRITE, 0, DUPLICATE_SAME_ACCESS);
+			if success == 0 {
+				let err = GetLastError();
+				return Err(Error::WinError(err));
+			}
+			Ok(Client { device: target_handle.assume_init() })
 		}
 	}
 }
