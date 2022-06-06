@@ -6,6 +6,7 @@ use winapi::um::ioapiset::*;
 use winapi::um::minwinbase::*;
 use winapi::um::synchapi::*;
 use winapi::um::errhandlingapi::*;
+use winapi::shared::winerror;
 use winapi::shared::ntdef::HANDLE;
 use winapi::shared::guiddef::GUID;
 
@@ -20,8 +21,10 @@ pub const IOCTL_PLUGIN_TARGET: u32 = 0x2AA004; //IOCTL_BASE + 0x000;
 pub const IOCTL_UNPLUG_TARGET: u32 = 0x2AA008; //IOCTL_BASE + 0x001;
 pub const IOCTL_CHECK_VERSION: u32 = 0x2AA00C; //IOCTL_BASE + 0x002;
 pub const IOCTL_WAIT_DEVICE_READY: u32 = 0x2AA010; //IOCTL_BASE + 0x003;
+#[cfg(feature = "unstable_xtarget_notification")]
+pub const IOCTL_XUSB_REQUEST_NOTIFICATION : u32 = 0x2AE804; //IOCTL_BASE + 0x200 (RW);
 pub const IOCTL_XUSB_SUBMIT_REPORT: u32 = 0x2AA808; //IOCTL_BASE + 0x201;
-#[cfg(feature = "unstable")]
+#[cfg(feature = "unstable_ds4")]
 pub const IOCTL_DS4_SUBMIT_REPORT: u32 = 0x2AA80C; //IOCTL_BASE + 0x202;
 pub const IOCTL_XUSB_GET_USER_INDEX: u32 = 0x2AE81C; //IOCTL_BASE + 0x206;
 
@@ -55,9 +58,9 @@ impl CheckVersion {
 			&mut transferred,
 			&mut overlapped);
 
-		let result = GetOverlappedResult(device, &mut overlapped, &mut transferred, 1);
+		let success = GetOverlappedResult(device, &mut overlapped, &mut transferred, /*bWait: */1);
 		CloseHandle(overlapped.hEvent);
-		return result != 0;
+		return success != 0;
 	}
 }
 
@@ -107,10 +110,11 @@ impl PluginTarget {
 			&mut transferred,
 			&mut overlapped);
 
-		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
-		else { Err(GetLastError()) };
+		if GetOverlappedResult(device, &mut overlapped, &mut transferred, /*bWait: */1) == 0 {
+			return Err(GetLastError());
+		}
 
-		result
+		Ok(())
 	}
 }
 
@@ -143,9 +147,15 @@ impl WaitDeviceReady {
 			&mut transferred,
 			&mut overlapped);
 
-		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
-		else { Err(GetLastError()) };
-		result
+		if GetOverlappedResult(device, &mut overlapped, &mut transferred, /*bWait: */1) == 0 {
+			let err = GetLastError();
+			// Version pre-1.17 where this IOCTL doesn't exist
+			if err != winerror::ERROR_INVALID_PARAMETER {
+				return Err(err);
+			}
+		}
+
+		Ok(())
 	}
 }
 
@@ -178,9 +188,11 @@ impl UnplugTarget {
 			&mut transferred,
 			&mut overlapped);
 
-		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
-		else { Err(GetLastError()) };
-		result
+		if GetOverlappedResult(device, &mut overlapped, &mut transferred, /*bWait: */1) == 0 {
+			return Err(GetLastError());
+		}
+
+		Ok(())
 	}
 }
 
@@ -215,20 +227,115 @@ impl XUsbSubmitReport {
 			&mut transferred,
 			&mut overlapped);
 
-		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
-		else { Err(GetLastError()) };
-		result
+		if GetOverlappedResult(device, &mut overlapped, &mut transferred, /*bWait: */1) == 0 {
+			return Err(GetLastError());
+		}
+
+		Ok(())
 	}
 }
 
-#[cfg(feature = "unstable")]
+#[cfg(feature = "unstable_xtarget_notification")]
+#[repr(C)]
+pub struct XUsbRequestNotification {
+	pub Size: u32,
+	pub SerialNo: u32,
+	pub LargeMotor: u8,
+	pub SmallMotor: u8,
+	pub LedNumber: u8,
+}
+
+#[cfg(feature = "unstable_xtarget_notification")]
+impl XUsbRequestNotification {
+	#[inline]
+	pub const fn new(serial_no: u32) -> XUsbRequestNotification {
+		XUsbRequestNotification {
+			Size: mem::size_of::<XUsbRequestNotification>() as u32,
+			SerialNo: serial_no,
+			LargeMotor: 0,
+			SmallMotor: 0,
+			LedNumber: 0,
+		}
+	}
+}
+
+#[cfg(feature = "unstable_xtarget_notification")]
+#[repr(C)]
+pub struct RequestNotification<T> {
+	pub overlapped: OVERLAPPED,
+	pub buffer: T,
+}
+// Safety: This instance must have a stable address (eg. on the heap)
+// Required for non-blocking DeviceIoControl, see msdn.
+#[cfg(feature = "unstable_xtarget_notification")]
+impl<T> RequestNotification<T> {
+	#[inline]
+	pub fn new(buffer: T) -> RequestNotification<T> {
+		let mut overlapped: OVERLAPPED = unsafe { mem::zeroed() };
+		overlapped.hEvent = unsafe { CreateEventW(ptr::null_mut(), 0, 0, ptr::null()) };
+		RequestNotification { overlapped, buffer }
+	}
+	#[inline]
+	pub unsafe fn ioctl(&mut self, device: HANDLE) {
+		let mut transferred = 0;
+
+		let buffer_ptr = &mut self.buffer as *mut _ as _;
+		let buffer_size = mem::size_of::<T>() as u32;
+
+		DeviceIoControl(
+			device,
+			IOCTL_XUSB_REQUEST_NOTIFICATION,
+			buffer_ptr,
+			buffer_size,
+			buffer_ptr,
+			buffer_size,
+			&mut transferred,
+			&mut self.overlapped);
+	}
+	#[inline]
+	pub unsafe fn cancel(&mut self, device: HANDLE) -> Result<(), u32> {
+		if CancelIoEx(device, &mut self.overlapped) == 0 {
+			let err = GetLastError();
+			// If no pending IO then everything is fine
+			if err == winerror::ERROR_NOT_FOUND {
+				return Ok(());
+			}
+			return Err(err);
+		}
+		let mut transferred = 0;
+		if GetOverlappedResult(device, &mut self.overlapped, &mut transferred, /*bWait: */1) == 0 {
+			let err = GetLastError();
+			// Expect the operation to be aborted
+			if err != winerror::ERROR_OPERATION_ABORTED {
+				return Err(err);
+			}
+		}
+		Ok(())
+	}
+	#[inline]
+	pub unsafe fn poll(&mut self, device: HANDLE, wait: bool) -> Result<(), u32> {
+		let mut transferred = 0;
+		if GetOverlappedResult(device, &mut self.overlapped, &mut transferred, wait as i32) == 0 {
+			return Err(GetLastError());
+		}
+		Ok(())
+	}
+}
+#[cfg(feature = "unstable_xtarget_notification")]
+impl<T> Drop for RequestNotification<T> {
+	fn drop(&mut self) {
+		unsafe { CloseHandle(self.overlapped.hEvent); }
+	}
+}
+
+#[cfg(feature = "unstable_ds4")]
 #[repr(C)]
 pub struct DS4SubmitReport {
 	pub Size: u32,
 	pub SerialNo: u32,
 	pub Report: crate::DS4Report,
 }
-#[cfg(feature = "unstable")]
+#[cfg(feature = "unstable_ds4")]
 impl DS4SubmitReport {
 	#[inline]
 	pub const fn new(serial_no: u32, report: crate::DS4Report) -> DS4SubmitReport {
@@ -254,9 +361,11 @@ impl DS4SubmitReport {
 			&mut transferred,
 			&mut overlapped);
 
-		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
-		else { Err(GetLastError()) };
-		result
+		if GetOverlappedResult(device, &mut overlapped, &mut transferred, /*bWait: */1) == 0 {
+			return Err(GetLastError());
+		}
+
+		Ok(())
 	}
 }
 
@@ -291,8 +400,10 @@ impl XUsbGetUserIndex {
 			&mut transferred,
 			&mut overlapped);
 
-		let result = if GetOverlappedResult(device, &mut overlapped, &mut transferred, 1) != 0 { Ok(()) }
-		else { Err(GetLastError()) };
-		result
+		if GetOverlappedResult(device, &mut overlapped, &mut transferred, /*bWait: */1) == 0 {
+			return Err(GetLastError());
+		}
+
+		Ok(())
 	}
 }

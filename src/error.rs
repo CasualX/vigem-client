@@ -2,6 +2,7 @@ use std::{error, fmt};
 
 /// ViGEm client errors.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum Error {
 	/// There was an unexpected windows error.
 	///
@@ -30,7 +31,12 @@ pub enum Error {
 	/// After creating the desired controller, wait some time before the target is ready to accept updates.
 	/// This error is returned if a target is updated before it is ready.
 	TargetNotReady,
+	/// The user index is out of range.
+	///
+	/// In XInput the user index should be between 0 and 4 exclusive.
 	UserIndexOutOfRange,
+	/// The operation was aborted.
+	OperationAborted,
 }
 
 impl From<u32> for Error {
@@ -52,6 +58,7 @@ impl fmt::Display for Error {
 			Error::NotPluggedIn => f.write_str("not plugged in"),
 			Error::TargetNotReady => f.write_str("target not ready"),
 			Error::UserIndexOutOfRange => f.write_str("user index out of range"),
+			Error::OperationAborted => f.write_str("operation aborted"),
 		}
 	}
 }

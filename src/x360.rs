@@ -1,4 +1,6 @@
 use std::{fmt, mem, ptr};
+#[cfg(feature = "unstable_xtarget_notification")]
+use std::{marker, pin, thread};
 use std::borrow::Borrow;
 use winapi::um::xinput::XINPUT_GAMEPAD;
 use winapi::shared::winerror;
@@ -132,6 +134,8 @@ impl fmt::Debug for XButtons {
 	}
 }
 
+/// XInput compatible gamepad.
+///
 /// Represents an [`XINPUT_GAMEPAD`]-compatible report structure.
 ///
 /// ![image](https://user-images.githubusercontent.com/2324759/124391245-f889b180-dcef-11eb-927c-4b76d2ca332d.png)
@@ -171,6 +175,139 @@ impl AsMut<XINPUT_GAMEPAD> for XGamepad {
 		unsafe { mem::transmute(self) }
 	}
 }
+
+/// XInput notification structure.
+#[cfg(feature = "unstable_xtarget_notification")]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
+#[repr(C)]
+pub struct XNotification {
+	pub large_motor: u8,
+	pub small_motor: u8,
+	pub led_number: u8,
+}
+
+/// XInput notification request.
+#[cfg(feature = "unstable_xtarget_notification")]
+pub struct XRequestNotification {
+	client: Client,
+	xurn: bus::RequestNotification<bus::XUsbRequestNotification>,
+	_unpin: marker::PhantomPinned,
+}
+
+#[cfg(feature = "unstable_xtarget_notification")]
+impl XRequestNotification {
+	/// Returns if the underlying target is still attached.
+	#[inline]
+	pub fn is_attached(&self) -> bool {
+		self.xurn.buffer.SerialNo != 0
+	}
+
+	/// Spawns a thread to handle the notifications.
+	///
+	/// The callback `f` is invoked for every notification.
+	///
+	/// Returns a [`JoinHandle`](thread::JoinHandle) for the created thread.
+	/// It is recommended to join the thread after the target from which the notifications are requested is dropped.
+	#[inline]
+	pub fn spawn_thread<F: FnMut(&XRequestNotification, XNotification) + Send + 'static>(self, mut f: F) -> thread::JoinHandle<()> {
+		thread::spawn(move || {
+			// Safety: the request notification object is not accessible after it is pinned
+			let mut reqn = self;
+			let mut reqn = unsafe { pin::Pin::new_unchecked(&mut reqn) };
+			loop {
+				reqn.as_mut().request();
+				let result = reqn.as_mut().poll(true);
+				match result {
+					Ok(None) => {},
+					Ok(Some(data)) => f(&reqn, data),
+					// When the target is dropped the notification request is aborted
+					Err(_) => break,
+				}
+			}
+		})
+	}
+
+	/// Requests a notification.
+	#[inline(never)]
+	pub fn request(self: pin::Pin<&mut Self>) {
+		unsafe {
+			let device = self.client.device;
+			let xurn = &mut self.get_unchecked_mut().xurn;
+			if xurn.buffer.SerialNo != 0 {
+				xurn.ioctl(device);
+			}
+		}
+	}
+
+	/// Polls the request for notifications.
+	///
+	/// If `wait` is true this method will block until a notification is received.
+	/// Else returns immediately if no notification is received yet.
+	///
+	/// Returns:
+	///
+	/// * `Ok(None)`: When `wait` is false and there is no notification yet.
+	/// * `Ok(Some(_))`: The notification was successfully received.  
+	///   Another request should be made or any other calls to `poll` return the same result.
+	/// * `Err(OperationAborted)`: The underlying target was unplugged causing any pending notification requests to abort.
+	/// * `Err(_)`: An unexpected error occurred.
+	#[inline(never)]
+	pub fn poll(self: pin::Pin<&mut Self>, wait: bool) -> Result<Option<XNotification>, Error> {
+		unsafe {
+			let device = self.client.device;
+			let xurn = &mut self.get_unchecked_mut().xurn;
+			match xurn.poll(device, wait) {
+				Ok(()) => Ok(Some(XNotification {
+					large_motor: xurn.buffer.LargeMotor,
+					small_motor: xurn.buffer.SmallMotor,
+					led_number: xurn.buffer.LedNumber,
+				})),
+				Err(winerror::ERROR_IO_INCOMPLETE) => Ok(None),
+				Err(winerror::ERROR_OPERATION_ABORTED) => {
+					// Operation was aborted, fail all future calls
+					// The is aborted when the underlying target is unplugged
+					// This has the potential for a race condition:
+					//  What happens if a new target is plugged inbetween calls to poll and request...
+					xurn.buffer.SerialNo = 0;
+					Err(Error::OperationAborted)
+				},
+				Err(err) => Err(Error::WinError(err)),
+			}
+		}
+	}
+}
+
+#[cfg(feature = "unstable_xtarget_notification")]
+unsafe impl Sync for XRequestNotification {}
+#[cfg(feature = "unstable_xtarget_notification")]
+unsafe impl Send for XRequestNotification {}
+
+#[cfg(feature = "unstable_xtarget_notification")]
+impl fmt::Debug for XRequestNotification {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("XRequestNotification")
+			.field("client", &format_args!("{:?}", self.client))
+			.field("serial_no", &self.xurn.buffer.SerialNo)
+			.finish()
+	}
+}
+
+#[cfg(feature = "unstable_xtarget_notification")]
+impl Drop for XRequestNotification {
+	fn drop(&mut self) {
+		unsafe {
+			let this = pin::Pin::new_unchecked(self);
+			if this.xurn.buffer.SerialNo != 0 {
+				let device = this.client.device;
+				let xurn = &mut this.get_unchecked_mut().xurn;
+				let _ = xurn.cancel(device);
+			}
+		}
+	}
+}
+
+/// Virtual Microsoft Xbox 360 Controller (wired).
+pub type XTarget = Xbox360Wired<Client>;
 
 /// A virtual Microsoft Xbox 360 Controller (wired).
 pub struct Xbox360Wired<CL: Borrow<Client>> {
@@ -316,11 +453,33 @@ impl<CL: Borrow<Client>> Xbox360Wired<CL> {
 			}
 		}
 	}
+
+	/// Request notification.
+	///
+	/// See examples/notification.rs for a complete example how to use this interface.
+	///
+	/// Do not create more than one request notification per target.
+	/// Notifications may get lost or received by one or more listeners.
+	#[cfg(feature = "unstable_xtarget_notification")]
+	#[inline(never)]
+	pub fn request_notification(&mut self) -> Result<XRequestNotification, Error> {
+		if !self.is_attached() {
+			return Err(Error::NotPluggedIn);
+		}
+
+		let client = self.client.borrow().try_clone()?;
+		let xurn = bus::RequestNotification::new(
+			bus::XUsbRequestNotification::new(self.serial_no));
+
+		Ok(XRequestNotification { client, xurn, _unpin: marker::PhantomPinned })
+	}
 }
 
 impl<CL: Borrow<Client>> fmt::Debug for Xbox360Wired<CL> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		f.debug_struct("Xbox360Wired")
+			.field("client", &format_args!("{:?}", self.client.borrow()))
+			.field("event", &format_args!("{:?}", self.event))
 			.field("serial_no", &self.serial_no)
 			.field("vendor_id", &self.id.vendor)
 			.field("product_id", &self.id.product)

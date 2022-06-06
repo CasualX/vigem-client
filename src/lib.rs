@@ -2,7 +2,7 @@
 ViGEm client in Rust
 ====================
 
-[ViGEm](https://vigem.org/) is a Virtual Gamepad Emulation Framework.
+[ViGEm](https://vigem.org/) is the Virtual Gamepad Emulation Framework.
 This crate implements a client for the [ViGEmBus Driver](https://github.com/ViGEm/ViGEmBus).
 The driver must be installed for this library to have any use.
 
@@ -104,8 +104,6 @@ let _ = target.update(&gamepad);
 ```
 
 The DualShock4Wired target is under development.
-
-The Notifications API is currently not implemented.
 */
 
 mod bus;
@@ -132,6 +130,6 @@ impl TargetId {
 	/// Default vender and product ids for a wired Xbox360 target.
 	pub const XBOX360_WIRED: TargetId = TargetId { vendor: 0x045E, product: 0x028E };
 	/// Default vender and product ids for a wired DualShock4 target.
-	#[cfg(feature = "unstable")]
+	#[cfg(feature = "unstable_ds4")]
 	pub const DUALSHOCK4_WIRED: TargetId = TargetId { vendor: 0x054C, product: 0x05C4 };
 }
