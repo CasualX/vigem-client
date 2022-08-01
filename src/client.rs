@@ -50,7 +50,7 @@ impl Client {
 				// Allocate target buffer
 				// This is a fixed size stack buffer which should be big enough for everyone
 				let detail_data_ptr = detail_data_buffer.as_mut_ptr() as PSP_DEVICE_INTERFACE_DETAIL_DATA_W;
-				(*detail_data_ptr).cbSize = mem::size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32;
+				*ptr::addr_of_mut!((*detail_data_ptr).cbSize) = mem::size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32;
 
 				// Get detail buffer
 				let mut required_size = 0;
@@ -67,7 +67,7 @@ impl Client {
 				}
 
 				// bus found, open it
-				let device_path = (*detail_data_ptr).DevicePath.as_ptr();
+				let device_path = ptr::addr_of!((*detail_data_ptr).DevicePath) as *const u16;
 				let device = CreateFileW(
 					device_path,
 					GENERIC_READ | GENERIC_WRITE,
