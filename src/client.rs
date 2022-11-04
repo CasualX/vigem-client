@@ -1,12 +1,9 @@
 use std::{mem, ptr};
-use std::os::windows::io as win_io;
-use winapi::um::handleapi::*;
-use winapi::um::setupapi::*;
-use winapi::um::fileapi::*;
-use winapi::um::winnt::*;
-use winapi::um::winbase::*;
-use winapi::um::errhandlingapi::*;
-use winapi::shared::ntdef::HANDLE;
+use std::os::windows::io::{AsRawHandle, FromRawHandle, RawHandle, IntoRawHandle};
+use windows_sys::Win32::Devices::DeviceAndDriverInstallation::*;
+use windows_sys::Win32::Foundation::*;
+use windows_sys::Win32::Storage::FileSystem::*;
+use windows_sys::Win32::System::SystemServices::*;
 use crate::*;
 
 /// The ViGEmBus service connection.
@@ -30,7 +27,7 @@ impl Client {
 			let device_info_set = SetupDiGetClassDevsW(
 				&bus::GUID_DEVINTERFACE,
 				ptr::null(),
-				ptr::null_mut(),
+				0,
 				DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
 
 			if device_info_set == INVALID_HANDLE_VALUE {
@@ -49,7 +46,7 @@ impl Client {
 
 				// Allocate target buffer
 				// This is a fixed size stack buffer which should be big enough for everyone
-				let detail_data_ptr = detail_data_buffer.as_mut_ptr() as PSP_DEVICE_INTERFACE_DETAIL_DATA_W;
+				let detail_data_ptr = detail_data_buffer.as_mut_ptr() as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W;
 				*ptr::addr_of_mut!((*detail_data_ptr).cbSize) = mem::size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32;
 
 				// Get detail buffer
@@ -75,7 +72,7 @@ impl Client {
 					ptr::null_mut(),
 					OPEN_EXISTING,
 					FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_OVERLAPPED,
-					ptr::null_mut());
+					0);
 
 				if device == INVALID_HANDLE_VALUE {
 					error = Error::BusAccessFailed(GetLastError());
@@ -102,7 +99,7 @@ impl Client {
 	#[inline]
 	pub fn try_clone(&self) -> Result<Client, Error> {
 		unsafe {
-			let process_handle = (!0) as *mut _;
+			let process_handle = !0;
 			let mut target_handle = mem::MaybeUninit::uninit();
 			let success = DuplicateHandle(
 				process_handle, self.device,
@@ -120,22 +117,22 @@ impl Client {
 unsafe impl Sync for Client {}
 unsafe impl Send for Client {}
 
-impl win_io::AsRawHandle for Client {
+impl AsRawHandle for Client {
 	#[inline]
-	fn as_raw_handle(&self) -> HANDLE {
-		self.device
+	fn as_raw_handle(&self) -> RawHandle {
+		self.device as RawHandle
 	}
 }
-impl win_io::IntoRawHandle for Client {
+impl IntoRawHandle for Client {
 	#[inline]
-	fn into_raw_handle(self) -> HANDLE {
-		self.device
+	fn into_raw_handle(self) -> RawHandle {
+		self.device as RawHandle
 	}
 }
-impl win_io::FromRawHandle for Client {
+impl FromRawHandle for Client {
 	#[inline]
-	unsafe fn from_raw_handle(device: HANDLE) -> Client {
-		Client { device }
+	unsafe fn from_raw_handle(device: RawHandle) -> Client {
+		Client { device: device as HANDLE }
 	}
 }
 
