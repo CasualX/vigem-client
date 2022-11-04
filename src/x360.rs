@@ -2,8 +2,8 @@ use std::{fmt, mem, ptr};
 #[cfg(feature = "unstable_xtarget_notification")]
 use std::{marker, pin, thread};
 use std::borrow::Borrow;
-use winapi::um::xinput::XINPUT_GAMEPAD;
-use winapi::shared::winerror;
+use windows_sys::Win32::Foundation::*;
+use windows_sys::Win32::UI::Input::XboxController::XINPUT_GAMEPAD;
 use crate::*;
 
 /// XInput compatible button flags.
@@ -262,8 +262,8 @@ impl XRequestNotification {
 					small_motor: xurn.buffer.SmallMotor,
 					led_number: xurn.buffer.LedNumber,
 				})),
-				Err(winerror::ERROR_IO_INCOMPLETE) => Ok(None),
-				Err(winerror::ERROR_OPERATION_ABORTED) => {
+				Err(ERROR_IO_INCOMPLETE) => Ok(None),
+				Err(ERROR_OPERATION_ABORTED) => {
 					// Operation was aborted, fail all future calls
 					// The is aborted when the underlying target is unplugged
 					// This has the potential for a race condition:
@@ -425,8 +425,8 @@ impl<CL: Borrow<Client>> Xbox360Wired<CL> {
 			let device = self.client.borrow().device;
 			match gui.ioctl(device, self.event.handle) {
 				Ok(()) => (),
-				// Err(winerror::ERROR_ACCESS_DENIED) => return Err(Error::InvalidTarget),
-				Err(winerror::ERROR_INVALID_DEVICE_OBJECT_PARAMETER) => return Err(Error::UserIndexOutOfRange),
+				// Err(ERROR_ACCESS_DENIED) => return Err(Error::InvalidTarget),
+				Err(ERROR_INVALID_DEVICE_OBJECT_PARAMETER) => return Err(Error::UserIndexOutOfRange),
 				Err(err) => return Err(Error::WinError(err)),
 			}
 
@@ -448,7 +448,7 @@ impl<CL: Borrow<Client>> Xbox360Wired<CL> {
 			let device = self.client.borrow().device;
 			match xsr.ioctl(device, self.event.handle) {
 				Ok(()) => Ok(()),
-				Err(winerror::ERROR_DEV_NOT_EXIST) => Err(Error::TargetNotReady),
+				Err(ERROR_DEV_NOT_EXIST) => Err(Error::TargetNotReady),
 				Err(err) => Err(Error::WinError(err)),
 			}
 		}

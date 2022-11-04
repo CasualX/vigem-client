@@ -1,18 +1,15 @@
 #![allow(non_snake_case)]
 
 use std::{mem, ptr};
-use winapi::um::handleapi::*;
-use winapi::um::ioapiset::*;
-use winapi::um::minwinbase::*;
-use winapi::um::synchapi::*;
-use winapi::um::errhandlingapi::*;
-use winapi::shared::winerror;
-use winapi::shared::ntdef::HANDLE;
-use winapi::shared::guiddef::GUID;
+
+use windows_sys::core::GUID;
+use windows_sys::Win32::Foundation::*;
+use windows_sys::Win32::System::Threading::*;
+use windows_sys::Win32::System::IO::*;
 
 pub static GUID_DEVINTERFACE: GUID = GUID {
-	Data1: 0x96E42B22, Data2: 0xF5E9, Data3: 0x42F8,
-	Data4: [0xB0, 0x43, 0xED, 0x0F, 0x93, 0x2F, 0x01, 0x4F],
+	data1: 0x96E42B22, data2: 0xF5E9, data3: 0x42F8,
+	data4: [0xB0, 0x43, 0xED, 0x0F, 0x93, 0x2F, 0x01, 0x4F],
 };
 
 // IO control codes
@@ -150,7 +147,7 @@ impl WaitDeviceReady {
 		if GetOverlappedResult(device, &mut overlapped, &mut transferred, /*bWait: */1) == 0 {
 			let err = GetLastError();
 			// Version pre-1.17 where this IOCTL doesn't exist
-			if err != winerror::ERROR_INVALID_PARAMETER {
+			if err != ERROR_INVALID_PARAMETER {
 				return Err(err);
 			}
 		}
@@ -279,7 +276,7 @@ impl<T> RequestNotification<T> {
 	pub unsafe fn ioctl(&mut self, device: HANDLE) {
 		let mut transferred = 0;
 
-		let buffer_ptr = &mut self.buffer as *mut _ as _;
+		let buffer_ptr = &mut self.buffer as *mut _ as *mut _;
 		let buffer_size = mem::size_of::<T>() as u32;
 
 		DeviceIoControl(
@@ -297,7 +294,7 @@ impl<T> RequestNotification<T> {
 		if CancelIoEx(device, &mut self.overlapped) == 0 {
 			let err = GetLastError();
 			// If no pending IO then everything is fine
-			if err == winerror::ERROR_NOT_FOUND {
+			if err == ERROR_NOT_FOUND {
 				return Ok(());
 			}
 			return Err(err);
@@ -306,7 +303,7 @@ impl<T> RequestNotification<T> {
 		if GetOverlappedResult(device, &mut self.overlapped, &mut transferred, /*bWait: */1) == 0 {
 			let err = GetLastError();
 			// Expect the operation to be aborted
-			if err != winerror::ERROR_OPERATION_ABORTED {
+			if err != ERROR_OPERATION_ABORTED {
 				return Err(err);
 			}
 		}
