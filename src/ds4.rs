@@ -33,33 +33,93 @@ impl Default for DS4Report {
 	}
 }
 
-// /// DualShock4 v1 complete HID Input report.
-// #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-// #[repr(C)]
-// pub struct DS4ReportEx {
-// 	pub thumb_lx: u8,
-// 	pub thumb_ly: u8,
-// 	pub thumb_rx: u8,
-// 	pub thumb_ry: u8,
-// 	pub buttons: u16,
-// 	pub special: u8,
-// 	pub trigger_l: u8,
-// 	pub trigger_r: u8,
-// 	pub timestamp: u16,
-// 	pub battery_lvl: u8,
-// 	pub gyro_x: i16,
-// 	pub gyro_y: i16,
-// 	pub gyro_z: i16,
-// 	pub accel_x: i16,
-// 	pub accel_y: i16,
-// 	pub accel_z: i16,
-// 	pub _unknown1: [u8; 5],
-// 	pub battery_lvl_special: u8,
-// 	pub _unknown2: [u8; 2],
-// 	pub touch_packets_n: u8, // 0x00 to 0x03 (USB max)
-// 	pub current_touch: DS4Touch,
-// 	pub previous_touch: [DS4Touch; 2],
-// }
+#[cfg(feature = "unstable_ds4")]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(C)]
+pub struct DS4Touch {
+    pub packet_counter: u8, // timestamp / packet counter associated with touch event
+    pub is_up_tracking_num1: u8, // 0 means down; active low
+    // unique to each finger down, so for a lift and repress the value is incremented
+    pub touch_data_1: [u8; 3], // Two 12 bits values (for X and Y)
+    // middle byte holds last 4 bits of X and the starting 4 bits of Y
+    pub is_up_tracking_num2: u8, // second touch data immediately follows data of first touch
+    pub touch_data_2: [u8; 3],   // resolution is 1920x943
+}
+
+/// DualShock4 v1 complete HID Input report.
+#[cfg(feature = "unstable_ds4")]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(C, packed)]
+pub struct DS4ReportEx {
+    pub thumb_lx: u8,
+    pub thumb_ly: u8,
+    pub thumb_rx: u8,
+    pub thumb_ry: u8,
+    pub buttons: u16,
+    pub special: u8,
+    pub trigger_l: u8,
+    pub trigger_r: u8,
+    pub timestamp: u16,
+    pub battery_lvl: u8,
+    pub gyro_x: i16,
+    pub gyro_y: i16,
+    pub gyro_z: i16,
+    pub accel_x: i16,
+    pub accel_y: i16,
+    pub accel_z: i16,
+    pub _unknown1: [u8; 5],
+    pub battery_lvl_special: u8,
+    pub _unknown2: [u8; 2],
+    pub touch_packets_n: u8, // 0x00 to 0x03 (USB max)
+    pub current_touch: DS4Touch,
+    pub previous_touch: [DS4Touch; 2],
+    pub _end_padding: [u8; 3], /* This struct is normally used as an union member with another member of 63 bytes,
+                        we bypass this by setting directly the padding in the struct */
+}
+
+#[cfg(feature = "unstable_ds4")]
+impl Default for DS4ReportEx {
+    #[inline]
+    fn default() -> Self {
+        DS4ReportEx {
+            thumb_lx: 0x80,
+            thumb_ly: 0x80,
+            thumb_rx: 0x80,
+            thumb_ry: 0x80,
+            buttons: 0x8,
+            special: 0,
+            trigger_l: 0,
+            trigger_r: 0,
+            timestamp: 0,
+            battery_lvl: 0,
+            gyro_x: 0,
+            gyro_y: 0,
+            gyro_z: 0,
+            accel_x: 0,
+            accel_y: 0,
+            accel_z: 0,
+            _unknown1: [0; 5],
+            battery_lvl_special: 0,
+            _unknown2: [0; 2],
+            touch_packets_n: 0,
+            current_touch: DS4Touch {
+                packet_counter: 0,
+                is_up_tracking_num1: 0,
+                touch_data_1: [0; 3],
+                is_up_tracking_num2: 0,
+                touch_data_2: [0; 3],
+            },
+            previous_touch: [DS4Touch {
+                packet_counter: 0,
+                is_up_tracking_num1: 0,
+                touch_data_1: [0; 3],
+                is_up_tracking_num2: 0,
+                touch_data_2: [0; 3],
+            }; 2],
+            _end_padding: [0; 3],
+        }
+    }
+}
 
 /// A virtual Sony DualShock 4 (wired).
 pub struct DualShock4Wired<CL: Borrow<Client>> {
@@ -185,13 +245,21 @@ impl<CL: Borrow<Client>> DualShock4Wired<CL> {
 		Ok(())
 	}
 
-	// #[inline(never)]
-	// pub fn update_ex(&mut self, report: &DS4ReportEx) -> Result<(), Error> {
-	// 	if !self.is_attached() {
-	// 		return Err(Error::NotPluggedIn);
-	// 	}
-	// 	unimplemented!()
-	// }
+    #[inline(never)]
+    #[cfg(feature = "unstable_ds4")]
+    pub fn update_ex(&mut self, report: &DS4ReportEx) -> Result<(), Error> {
+        if !self.is_attached() {
+            return Err(Error::NotPluggedIn);
+        }
+
+        unsafe {
+            let mut dsr = bus::DS4SubmitReportEx::new(self.serial_no, *report);
+            let device = self.client.borrow().device;
+            dsr.ioctl(device, self.event.handle)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl<CL: Borrow<Client>> fmt::Debug for DualShock4Wired<CL> {

@@ -369,6 +369,55 @@ impl DS4SubmitReport {
 	}
 }
 
+#[cfg(feature = "unstable_ds4")]
+#[repr(C, packed)]
+pub struct DS4SubmitReportEx {
+    pub Size: u32,
+    pub SerialNo: u32,
+    pub Report: crate::DS4ReportEx,
+}
+#[cfg(feature = "unstable_ds4")]
+impl DS4SubmitReportEx {
+    #[inline]
+    pub const fn new(serial_no: u32, report: crate::DS4ReportEx) -> DS4SubmitReportEx {
+        DS4SubmitReportEx {
+            Size: mem::size_of::<DS4SubmitReportEx>() as u32,
+            SerialNo: serial_no,
+            Report: report,
+        }
+    }
+    #[inline]
+    pub unsafe fn ioctl(&mut self, device: HANDLE, event: HANDLE) -> Result<(), u32> {
+        let mut transferred = 0;
+        let mut overlapped: OVERLAPPED = mem::zeroed();
+        overlapped.hEvent = event;
+
+        DeviceIoControl(
+            device,
+            IOCTL_DS4_SUBMIT_REPORT,
+            self as *mut _ as _,
+            mem::size_of_val(self) as u32,
+            ptr::null_mut(),
+            0,
+            &mut transferred,
+            &mut overlapped,
+        );
+
+        if GetOverlappedResult(
+            device,
+            &mut overlapped,
+            &mut transferred,
+            /*bWait: */ 1,
+        ) == 0
+        {
+            return Err(GetLastError());
+        }
+
+        Ok(())
+    }
+}
+
+
 #[repr(C)]
 pub struct XUsbGetUserIndex {
 	pub Size: u32,
