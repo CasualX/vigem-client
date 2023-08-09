@@ -1,5 +1,6 @@
 //! DualShock 4 button components.
 
+use std::fmt::Debug;
 
 /// DS4 button flags.
 ///
@@ -17,10 +18,33 @@
 ///
 /// # assert_eq!(u16::from(buttons), DS4Buttons::THUMB_RIGHT | DS4Buttons::CROSS | DS4Buttons::DPAD_SOUTH | DS4Buttons::SHOULDER_LEFT);
 /// ```
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 #[must_use = "This struct serves as a builder,
               and must be consumed by calling into() with the `DS4Report`/`DS4ReportEx` structs or directly with their respective builders"]
-pub struct DS4Buttons(u16);
+pub struct DS4Buttons(pub(super) u16);
+
+impl Debug for DS4Buttons {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DS4Buttons")
+            .field("thumb_right", &(self.0 & DS4Buttons::THUMB_RIGHT != 0))
+            .field("thumb_left", &(self.0 & DS4Buttons::THUMB_LEFT != 0))
+            .field("options", &(self.0 & DS4Buttons::OPTIONS != 0))
+            .field("share", &(self.0 & DS4Buttons::SHARE != 0))
+            .field("trigger_right", &(self.0 & DS4Buttons::TRIGGER_RIGHT != 0))
+            .field("trigger_left", &(self.0 & DS4Buttons::TRIGGER_LEFT != 0))
+            .field(
+                "shoulder_right",
+                &(self.0 & DS4Buttons::SHOULDER_RIGHT != 0),
+            )
+            .field("shoulder_left", &(self.0 & DS4Buttons::SHOULDER_LEFT != 0))
+            .field("triangle", &(self.0 & DS4Buttons::TRIANGLE != 0))
+            .field("circle", &(self.0 & DS4Buttons::CIRCLE != 0))
+            .field("cross", &(self.0 & DS4Buttons::CROSS != 0))
+            .field("square", &(self.0 & DS4Buttons::SQUARE != 0))
+            .field("dpad", &DpadDirection::from(self.0 & 0xF))
+            .finish()
+    }
+}
 
 /// Direction of the D-Pad.
 ///
@@ -65,6 +89,22 @@ impl From<DpadDirection> for u16 {
             DpadDirection::West => DS4Buttons::DPAD_WEST,
             DpadDirection::Northwest => DS4Buttons::DPAD_NORTHWEST,
             DpadDirection::None => DS4Buttons::DPAD_NONE,
+        }
+    }
+}
+
+impl From<u16> for DpadDirection {
+    fn from(dpad: u16) -> Self {
+        match dpad {
+            DS4Buttons::DPAD_NORTH => DpadDirection::North,
+            DS4Buttons::DPAD_NORTHEAST => DpadDirection::Northeast,
+            DS4Buttons::DPAD_EAST => DpadDirection::East,
+            DS4Buttons::DPAD_SOUTHEAST => DpadDirection::Southeast,
+            DS4Buttons::DPAD_SOUTH => DpadDirection::South,
+            DS4Buttons::DPAD_SOUTHWEST => DpadDirection::Southwest,
+            DS4Buttons::DPAD_WEST => DpadDirection::West,
+            DS4Buttons::DPAD_NORTHWEST => DpadDirection::Northwest,
+            _ => DpadDirection::None,
         }
     }
 }
@@ -267,10 +307,20 @@ impl DS4Buttons {
 ///
 /// # assert_eq!(u8::from(buttons), DS4SpecialButtons::MIC_MUTE | DS4SpecialButtons::PS_HOME | DS4SpecialButtons::TOUCHPAD);
 /// ```
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 #[must_use = "This struct serves as a builder,
               and must be consumed by calling into() with the `DS4Report`/`DS4ReportEx` structs or directly with their respective builders"]
-pub struct DS4SpecialButtons(u8);
+pub struct DS4SpecialButtons(pub(super) u8);
+
+impl Debug for DS4SpecialButtons {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DS4SpecialButtons")
+            .field("mic_mute", &(self.0 & DS4SpecialButtons::MIC_MUTE != 0))
+            .field("touchpad", &(self.0 & DS4SpecialButtons::TOUCHPAD != 0))
+            .field("ps_home", &(self.0 & DS4SpecialButtons::PS_HOME != 0))
+            .finish()
+    }
+}
 
 impl DS4SpecialButtons {
     pub const MIC_MUTE: u8 = 1 << 2;

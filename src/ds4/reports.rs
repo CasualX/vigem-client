@@ -4,7 +4,7 @@ use super::{DS4Buttons, DS4SpecialButtons};
 
 use std::{convert::TryInto, fmt};
 
-/// DualShock4 HID Input report.
+/// DualShock4 HID basic input report.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(C)]
 pub struct DS4Report {
@@ -18,7 +18,6 @@ pub struct DS4Report {
     trigger_r: u8,
 }
 impl Default for DS4Report {
-    #[inline]
     fn default() -> Self {
         DS4Report {
             thumb_lx: 0x80,
@@ -51,7 +50,7 @@ pub struct DS4TouchPoint {
     /// Last bit is set if the touch point is inactive.
     contact: u8,
     x_lo: u8,
-    x_hi_y_lo: u8, // 4 bits of x_hi, 4 bits of y_lo
+    x_hi_y_lo: u8, // 4 higher bits of X, 4 lower bits of Y
     y_hi: u8,
 }
 
@@ -93,7 +92,6 @@ impl DS4TouchPoint {
 }
 
 impl Default for DS4TouchPoint {
-    #[inline]
     fn default() -> Self {
         DS4TouchPoint {
             contact: 0,
@@ -119,8 +117,8 @@ impl Default for DS4TouchPoint {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(C)]
 pub struct DS4TouchReport {
-    pub timestamp: u8,
-    pub points: [DS4TouchPoint; 2],
+    timestamp: u8,
+    points: [DS4TouchPoint; 2],
 }
 
 impl DS4TouchReport {
@@ -135,20 +133,9 @@ impl DS4TouchReport {
             points: [point1.unwrap_or_default(), point2.unwrap_or_default()],
         }
     }
-
-    /// Get the timestamp of the touch report.
-    pub fn timestamp(&self) -> u8 {
-        self.timestamp
-    }
-
-    /// Get the touch points of the touch report.
-    pub fn points(&self) -> &[DS4TouchPoint; 2] {
-        &self.points
-    }
 }
 
 impl Default for DS4TouchReport {
-    #[inline]
     fn default() -> Self {
         DS4TouchReport {
             timestamp: 0,
@@ -158,7 +145,7 @@ impl Default for DS4TouchReport {
 }
 
 /// DualShock4 v1 complete HID Input report.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 #[repr(C, packed)]
 pub struct DS4ReportEx {
     thumb_lx: u8,
@@ -185,8 +172,45 @@ pub struct DS4ReportEx {
     reserved: [u8; 3],
 }
 
+impl fmt::Debug for DS4ReportEx {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let buttons = DS4Buttons(self.buttons);
+        let special = DS4SpecialButtons(self.special);
+        // Some fields are unaligned, so we need to copy them to a local variable.
+        let timestamp = self.timestamp;
+        let gyro_x = self.gyro_x;
+        let gyro_y = self.gyro_y;
+        let gyro_z = self.gyro_z;
+        let accel_x = self.accel_x;
+        let accel_y = self.accel_y;
+        let accel_z = self.accel_z;
+        let status = DS4Status(self.status);
+
+        f.debug_struct("DS4ReportEx")
+            .field("thumb_lx", &self.thumb_lx)
+            .field("thumb_ly", &self.thumb_ly)
+            .field("thumb_rx", &self.thumb_rx)
+            .field("thumb_ry", &self.thumb_ry)
+            .field("buttons", &buttons)
+            .field("special", &special)
+            .field("trigger_l", &self.trigger_l)
+            .field("trigger_r", &self.trigger_r)
+            .field("timestamp", &timestamp)
+            .field("temp", &self.temp)
+            .field("gyro_x", &gyro_x)
+            .field("gyro_y", &gyro_y)
+            .field("gyro_z", &gyro_z)
+            .field("accel_x", &accel_x)
+            .field("accel_y", &accel_y)
+            .field("accel_z", &accel_z)
+            .field("status", &status)
+            .field("num_touch_reports", &self.num_touch_reports)
+            .field("touch_reports", &self.touch_reports)
+            .finish()
+    }
+}
+
 impl Default for DS4ReportEx {
-    #[inline]
     fn default() -> Self {
         DS4ReportEx {
             thumb_lx: 0x80,
@@ -254,8 +278,25 @@ impl From<BatteryStatus> for u16 {
 ///
 /// # assert_eq!(u16::from(status), DS4Status::CABLE_STATE | 5);
 /// ```
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct DS4Status(u16);
+
+impl fmt::Debug for DS4Status {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let battery_status = match self.0 & 0xF {
+            DS4Status::BATTERY_FULL => BatteryStatus::Full,
+            DS4Status::NOT_CHARGING => BatteryStatus::Unknown,
+            DS4Status::CHARGE_ERROR => BatteryStatus::Error,
+            capacity => BatteryStatus::Charging(capacity as u8),
+        };
+
+        f.debug_struct("DS4Status")
+            .field("cable_state", &(self.0 & DS4Status::CABLE_STATE != 0))
+            .field("dongle_state", &(self.0 & DS4Status::_DONGLE_STATE != 0))
+            .field("battery_status", &battery_status)
+            .finish()
+    }
+}
 
 impl DS4Status {
     const _DONGLE_STATE: u16 = 1 << 11; // 0 = not connected, 1 = connected
@@ -294,6 +335,19 @@ impl From<DS4Status> for u16 {
 /// A builder for [`DS4Report`].
 ///
 /// # Examples
+///
+/// ```rust
+/// # use vigem_client::{DS4ReportBuilder, DS4Report, DS4Buttons, DS4SpecialButtons};
+/// let report = DS4ReportBuilder::new()
+///    .thumb_lx(0x80)
+///    .thumb_rx(0x80)
+///    .thumb_ry(0x80)
+///    .buttons(DS4Buttons::new().cross(true).square(true))
+///    .special(DS4SpecialButtons::new().touchpad(true) | DS4SpecialButtons::PS_HOME)
+///    .trigger_l(0)
+///    .trigger_r(0)
+///    .build();
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[must_use = "This struct serves as a builder,
               and must be consumed by calling into()"]
@@ -416,6 +470,22 @@ impl From<DS4ReportBuilder> for DS4Report {
 /// A builder for [`DS4ReportEx`].
 ///
 /// # Examples
+///
+/// ```rust
+/// # use vigem_client::{DS4ReportExBuilder, DS4ReportEx, DS4Buttons, DS4SpecialButtons, DS4Status, DS4TouchReport, DS4TouchPoint, BatteryStatus};
+///
+/// let report = DS4ReportExBuilder::new()
+///     .thumb_lx(0x80)
+///     .thumb_rx(0x80)
+///     .thumb_ry(0x80)
+///     .buttons(DS4Buttons::new().cross(true).square(true))
+///     .special(DS4SpecialButtons::new().touchpad(true) | DS4SpecialButtons::PS_HOME)
+///     .gyro_x(1900)
+///     .accel_x(1900)
+///     .status(DS4Status::with_battery_status(BatteryStatus::Charging(5)))
+///     .touch_reports(&[DS4TouchReport::new(0, Some(DS4TouchPoint::new(true, 1920, 942)), None)])
+///     .build();
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[must_use = "This struct serves as a builder,
               and must be consumed by calling into()"]
@@ -437,7 +507,7 @@ pub struct DS4ReportExBuilder {
     accel_y: Option<i16>,
     accel_z: Option<i16>,
     status: Option<DS4Status>,
-    num_touch_reports: Option<u8>,
+    num_touch_reports: u8,
     touch_reports: [DS4TouchReport; 3],
 }
 
@@ -461,7 +531,7 @@ impl DS4ReportExBuilder {
             accel_y: None,
             accel_z: None,
             status: None,
-            num_touch_reports: None,
+            num_touch_reports: 0,
             touch_reports: [DS4TouchReport::default(); 3],
         }
     }
@@ -570,6 +640,7 @@ impl DS4ReportExBuilder {
 
     /// Set the touch reports.
     pub fn touch_reports(mut self, value: &[DS4TouchReport]) -> Self {
+        self.num_touch_reports = value.len().try_into().unwrap();
         self.touch_reports = value
             .iter()
             .take(3)
@@ -627,7 +698,7 @@ impl DS4ReportExBuilder {
             reserved2: [0; 5],
             status: self.status.unwrap_or(DS4Status::default()).into(),
             reserved3: 0,
-            num_touch_reports: self.num_touch_reports.unwrap_or(0),
+            num_touch_reports: self.num_touch_reports,
             touch_reports: self.touch_reports,
             reserved: [0; 3],
         }
