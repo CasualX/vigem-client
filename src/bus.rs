@@ -24,7 +24,6 @@ pub const IOCTL_WAIT_DEVICE_READY: u32 = 0x2AA010; //IOCTL_BASE + 0x003;
 #[cfg(feature = "unstable_xtarget_notification")]
 pub const IOCTL_XUSB_REQUEST_NOTIFICATION : u32 = 0x2AE804; //IOCTL_BASE + 0x200 (RW);
 pub const IOCTL_XUSB_SUBMIT_REPORT: u32 = 0x2AA808; //IOCTL_BASE + 0x201;
-#[cfg(feature = "unstable_ds4")]
 pub const IOCTL_DS4_SUBMIT_REPORT: u32 = 0x2AA80C; //IOCTL_BASE + 0x202;
 pub const IOCTL_XUSB_GET_USER_INDEX: u32 = 0x2AE81C; //IOCTL_BASE + 0x206;
 
@@ -328,14 +327,12 @@ impl<T> Drop for RequestNotification<T> {
 	}
 }
 
-#[cfg(feature = "unstable_ds4")]
 #[repr(C)]
 pub struct DS4SubmitReport {
 	pub Size: u32,
 	pub SerialNo: u32,
 	pub Report: crate::DS4Report,
 }
-#[cfg(feature = "unstable_ds4")]
 impl DS4SubmitReport {
 	#[inline]
 	pub const fn new(serial_no: u32, report: crate::DS4Report) -> DS4SubmitReport {
@@ -369,14 +366,12 @@ impl DS4SubmitReport {
 	}
 }
 
-#[cfg(feature = "unstable_ds4")]
 #[repr(C, packed)]
 pub struct DS4SubmitReportEx {
     pub Size: u32,
     pub SerialNo: u32,
     pub Report: crate::DS4ReportEx,
 }
-#[cfg(feature = "unstable_ds4")]
 impl DS4SubmitReportEx {
     #[inline]
     pub const fn new(serial_no: u32, report: crate::DS4ReportEx) -> DS4SubmitReportEx {

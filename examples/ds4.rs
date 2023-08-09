@@ -1,5 +1,7 @@
 use std::{thread, time};
 
+use vigem_client::{DS4Buttons, DS4ReportExBuilder, DS4SpecialButtons};
+
 fn main() {
     // Connect to the ViGEmBus driver
     let client = vigem_client::Client::connect().unwrap();
@@ -14,11 +16,6 @@ fn main() {
     // Wait for the virtual controller to be ready to accept updates
     target.wait_ready().unwrap();
 
-    // The input state of the virtual controller
-    let mut gamepad = vigem_client::DS4ReportEx {
-        ..Default::default()
-    };
-
     let start = time::Instant::now();
     loop {
         let elapsed = start.elapsed().as_secs_f64();
@@ -28,19 +25,21 @@ fn main() {
             break;
         }
 
-        // Spin the left thumb stick in circles
-        gamepad.thumb_lx = ((elapsed.cos() + 1.) * 127.) as u8;
-        gamepad.thumb_ly = ((elapsed.sin() + 1.) * 127.) as u8;
+        let report = DS4ReportExBuilder::new()
+            // Spin the right thumb stick in circles
+            .thumb_lx(((elapsed.cos() + 1.) * 127.) as u8)
+            .thumb_ly(((elapsed.sin() + 1.) * 127.) as u8)
+            // Spin the right thumb stick in circles
+            .thumb_rx(255 - ((elapsed.cos() + 1.) * 127.) as u8)
+            .thumb_ry(255 - ((elapsed.sin() + 1.) * 127.) as u8)
+            // Twiddle the triggers
+            .trigger_l(((((elapsed * 1.5).sin() * 127.0) as i32) + 127) as u8)
+            .trigger_r(((((elapsed * 1.5).cos() * 127.0) as i32) + 127) as u8)
+            .buttons(DS4Buttons::new().cross(true).circle(true))
+            .special(DS4SpecialButtons::new().ps_home(true))
+            .build();
 
-        // Spin the right thumb stick in circles
-        gamepad.thumb_rx = gamepad.thumb_ly;
-        gamepad.thumb_ry = gamepad.thumb_lx;
-
-        // Twiddle the triggers
-        gamepad.trigger_l = ((((elapsed * 1.5).sin() * 127.0) as i32) + 127) as u8;
-        gamepad.trigger_r = ((((elapsed * 1.5).cos() * 127.0) as i32) + 127) as u8;
-
-        let _ = target.update_ex(&gamepad);
+        let _ = target.update_ex(&report);
 
         thread::sleep(time::Duration::from_millis(10));
     }

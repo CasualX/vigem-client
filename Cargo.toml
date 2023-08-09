@@ -20,11 +20,8 @@ required-features = ["unstable_xtarget_notification"]
 
 [[example]]
 name = "ds4"
-required-features = ["unstable_ds4"]
 
 [features]
-# Include the DS4Target target
-unstable_ds4 = []
 # Include the XTarget notification API
 unstable_xtarget_notification = []
 
