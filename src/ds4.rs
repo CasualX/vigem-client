@@ -245,6 +245,7 @@ impl<CL: Borrow<Client>> DualShock4Wired<CL> {
 		Ok(())
 	}
 
+    /// Updates the virtual controller state using the extended report.
     #[inline(never)]
     #[cfg(feature = "unstable_ds4")]
     pub fn update_ex(&mut self, report: &DS4ReportEx) -> Result<(), Error> {
