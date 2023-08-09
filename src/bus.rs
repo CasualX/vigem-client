@@ -417,6 +417,8 @@ impl DS4SubmitReportEx {
     }
 }
 
+#[cfg(feature = "unstable_ds4")]
+const _: [(); 71] = [(); mem::size_of::<DS4SubmitReportEx>()];
 
 #[repr(C)]
 pub struct XUsbGetUserIndex {

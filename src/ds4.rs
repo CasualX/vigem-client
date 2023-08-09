@@ -77,6 +77,10 @@ pub struct DS4ReportEx {
                         we bypass this by setting directly the padding in the struct */
 }
 
+// Assert that the struct is 63 bytes long
+#[cfg(feature = "unstable_ds4")]
+const _: [(); 63] = [(); mem::size_of::<DS4ReportEx>()];
+
 #[cfg(feature = "unstable_ds4")]
 impl Default for DS4ReportEx {
     #[inline]
