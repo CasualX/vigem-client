@@ -744,6 +744,8 @@ impl DS4ReportExBuilder {
     }
 
     /// Set the touch reports, with the most recent report first.
+    /// The number of reports is automatically set to the number of active reports,
+    /// starting from the most recent and stopping at the first inactive report (None value).
     #[inline]
     pub fn touch_reports(
         mut self,
@@ -758,7 +760,7 @@ impl DS4ReportExBuilder {
     }
 
     /// Set the touch reports all at once with an array, with the most recent report first.
-    /// The number of reports is in the range 0..3 and reflects the number of active reports in the array.
+    /// The number of reports is in the range 0..3 and reflects the number of contiguous active reports in the array.
     #[inline]
     pub fn all_touch_reports(mut self, num_reports: u8, reports: [DS4TouchReport; 3]) -> Self {
         self.num_touch_reports = num_reports.min(3);
