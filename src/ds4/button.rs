@@ -1,6 +1,10 @@
 //! DualShock 4 button components.
 
-use std::fmt::Debug;
+use std::{
+    convert::TryFrom,
+    fmt::Debug,
+    ops::{BitOr, BitOrAssign},
+};
 
 /// DS4 button flags.
 ///
@@ -14,7 +18,7 @@ use std::fmt::Debug;
 /// let buttons = DS4Buttons::new();
 /// let buttons = buttons.thumb_right(true).cross(true).dpad(DpadDirection::South);
 /// let buttons = buttons | DS4Buttons::SHOULDER_LEFT;
-/// # assert_eq!(u16::from(buttons), DS4Buttons::THUMB_RIGHT | DS4Buttons::CROSS | DS4Buttons::DPAD_SOUTH | DS4Buttons::SHOULDER_LEFT);
+/// # assert_eq!(u16::from(buttons), DS4Buttons::THUMB_RIGHT | DS4Buttons::CROSS | DpadDirection::South as u16 | DS4Buttons::SHOULDER_LEFT);
 /// ```
 #[derive(Copy, Clone, Eq, PartialEq)]
 #[must_use = "This struct serves as a builder,
@@ -39,74 +43,13 @@ impl Debug for DS4Buttons {
             .field("circle", &(self.0 & DS4Buttons::CIRCLE != 0))
             .field("cross", &(self.0 & DS4Buttons::CROSS != 0))
             .field("square", &(self.0 & DS4Buttons::SQUARE != 0))
-            .field("dpad", &DpadDirection::from(self.0 & 0xF))
+            .field(
+                "dpad",
+                &DpadDirection::try_from(self.0 & 0xF).unwrap_or(DpadDirection::None),
+            )
             .finish()
     }
 }
-
-/// Direction of the D-Pad.
-///
-/// This enum is used to set the D-Pad direction in [`DS4Buttons`], as D-Pad directions can't simply be ORed together.
-///
-/// # Note
-///
-/// The `None` variant can be used to reset the D-Pad direction.
-///
-/// # Examples
-///
-/// ```rust
-/// # use vigem_client::{DS4Buttons, DpadDirection};
-/// let buttons = DS4Buttons::new();
-/// let buttons = buttons.dpad(DpadDirection::South);
-/// # assert_eq!(u16::from(buttons), DS4Buttons::DPAD_SOUTH);
-/// ```
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum DpadDirection {
-    North,
-    Northeast,
-    East,
-    Southeast,
-    South,
-    Southwest,
-    West,
-    Northwest,
-    None,
-}
-
-impl From<DpadDirection> for u16 {
-    #[inline]
-    fn from(dpad: DpadDirection) -> Self {
-        match dpad {
-            DpadDirection::North => DS4Buttons::DPAD_NORTH,
-            DpadDirection::Northeast => DS4Buttons::DPAD_NORTHEAST,
-            DpadDirection::East => DS4Buttons::DPAD_EAST,
-            DpadDirection::Southeast => DS4Buttons::DPAD_SOUTHEAST,
-            DpadDirection::South => DS4Buttons::DPAD_SOUTH,
-            DpadDirection::Southwest => DS4Buttons::DPAD_SOUTHWEST,
-            DpadDirection::West => DS4Buttons::DPAD_WEST,
-            DpadDirection::Northwest => DS4Buttons::DPAD_NORTHWEST,
-            DpadDirection::None => DS4Buttons::DPAD_NONE,
-        }
-    }
-}
-
-impl From<u16> for DpadDirection {
-    #[inline]
-    fn from(dpad: u16) -> Self {
-        match dpad {
-            DS4Buttons::DPAD_NORTH => DpadDirection::North,
-            DS4Buttons::DPAD_NORTHEAST => DpadDirection::Northeast,
-            DS4Buttons::DPAD_EAST => DpadDirection::East,
-            DS4Buttons::DPAD_SOUTHEAST => DpadDirection::Southeast,
-            DS4Buttons::DPAD_SOUTH => DpadDirection::South,
-            DS4Buttons::DPAD_SOUTHWEST => DpadDirection::Southwest,
-            DS4Buttons::DPAD_WEST => DpadDirection::West,
-            DS4Buttons::DPAD_NORTHWEST => DpadDirection::Northwest,
-            _ => DpadDirection::None,
-        }
-    }
-}
-
 impl Default for DS4Buttons {
     #[inline]
     fn default() -> Self {
@@ -141,23 +84,23 @@ impl DS4Buttons {
     /// Square button.
     pub const SQUARE: u16 = 1 << 4;
     /// D-Pad neutral position.
-    pub const DPAD_NONE: u16 = 0x8; // 1 << 3
+    const DPAD_NONE: u16 = 0x8; // 1 << 3
     /// D-Pad North-West direction.
-    pub const DPAD_NORTHWEST: u16 = 0x7;
+    const DPAD_NORTHWEST: u16 = 0x7;
     /// D-Pad West direction.
-    pub const DPAD_WEST: u16 = 0x6;
+    const DPAD_WEST: u16 = 0x6;
     /// D-Pad South-West direction.
-    pub const DPAD_SOUTHWEST: u16 = 0x5;
+    const DPAD_SOUTHWEST: u16 = 0x5;
     /// D-Pad South direction.
-    pub const DPAD_SOUTH: u16 = 0x4;
+    const DPAD_SOUTH: u16 = 0x4;
     /// D-Pad South-East direction.
-    pub const DPAD_SOUTHEAST: u16 = 0x3;
+    const DPAD_SOUTHEAST: u16 = 0x3;
     /// D-Pad East direction.
-    pub const DPAD_EAST: u16 = 0x2;
+    const DPAD_EAST: u16 = 0x2;
     /// D-Pad North-East direction.
-    pub const DPAD_NORTHEAST: u16 = 0x1;
+    const DPAD_NORTHEAST: u16 = 0x1;
     /// D-Pad North direction.
-    pub const DPAD_NORTH: u16 = 0x0;
+    const DPAD_NORTH: u16 = 0x0;
 }
 
 impl From<DS4Buttons> for u16 {
@@ -167,7 +110,7 @@ impl From<DS4Buttons> for u16 {
     }
 }
 
-impl std::ops::BitOr<u16> for DS4Buttons {
+impl BitOr<u16> for DS4Buttons {
     type Output = Self;
 
     #[inline]
@@ -176,7 +119,7 @@ impl std::ops::BitOr<u16> for DS4Buttons {
     }
 }
 
-impl std::ops::BitOrAssign<u16> for DS4Buttons {
+impl BitOrAssign<u16> for DS4Buttons {
     #[inline]
     fn bitor_assign(&mut self, rhs: u16) {
         self.0 |= rhs;
@@ -301,9 +244,85 @@ impl DS4Buttons {
     /// Set the D-Pad direction, with the [`DpadDirection`] enum.
     #[inline]
     pub fn dpad(mut self, dpad: DpadDirection) -> Self {
-        self.0 ^= u16::from(DpadDirection::None);
-        self.0 |= u16::from(dpad);
+        self.0 ^= DpadDirection::None as u16;
+        self.0 |= dpad as u16;
         self
+    }
+}
+
+impl BitOr<DpadDirection> for DS4Buttons {
+    type Output = Self;
+
+    #[inline]
+    fn bitor(self, rhs: DpadDirection) -> Self::Output {
+        self.dpad(rhs)
+    }
+}
+
+impl BitOrAssign<DpadDirection> for DS4Buttons {
+    #[inline]
+    fn bitor_assign(&mut self, rhs: DpadDirection) {
+        *self = self.dpad(rhs);
+    }
+}
+
+/// Direction of the D-Pad.
+///
+/// This enum is used to set the D-Pad direction in [`DS4Buttons`], as D-Pad directions can't simply be ORed together.
+///
+/// # Note
+///
+/// The `None` variant can be used to reset the D-Pad direction.
+///
+/// # Examples
+///
+/// ```rust
+/// # use vigem_client::{DS4Buttons, DpadDirection};
+/// let buttons = DS4Buttons::new();
+/// let buttons = buttons.dpad(DpadDirection::South);
+/// # assert_eq!(u16::from(buttons), DpadDirection::South as u16);
+/// ```
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[repr(u16)]
+pub enum DpadDirection {
+    /// D-Pad North direction.
+    North = DS4Buttons::DPAD_NORTH,
+    /// D-Pad North-East direction.
+    Northeast = DS4Buttons::DPAD_NORTHEAST,
+    /// D-Pad East direction.
+    East = DS4Buttons::DPAD_EAST,
+    /// D-Pad South-East direction.
+    Southeast = DS4Buttons::DPAD_SOUTHEAST,
+    /// D-Pad South direction.
+    South = DS4Buttons::DPAD_SOUTH,
+    /// D-Pad South-West direction.
+    Southwest = DS4Buttons::DPAD_SOUTHWEST,
+    /// D-Pad West direction.
+    West = DS4Buttons::DPAD_WEST,
+    /// D-Pad North-West direction.
+    Northwest = DS4Buttons::DPAD_NORTHWEST,
+    /// D-Pad neutral position.
+    None = DS4Buttons::DPAD_NONE,
+}
+
+#[doc(hidden)]
+impl TryFrom<u16> for DpadDirection {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        match value {
+            DS4Buttons::DPAD_NORTH => Ok(DpadDirection::North),
+            DS4Buttons::DPAD_NORTHEAST => Ok(DpadDirection::Northeast),
+            DS4Buttons::DPAD_EAST => Ok(DpadDirection::East),
+            DS4Buttons::DPAD_SOUTHEAST => Ok(DpadDirection::Southeast),
+            DS4Buttons::DPAD_SOUTH => Ok(DpadDirection::South),
+            DS4Buttons::DPAD_SOUTHWEST => Ok(DpadDirection::Southwest),
+            DS4Buttons::DPAD_WEST => Ok(DpadDirection::West),
+            DS4Buttons::DPAD_NORTHWEST => Ok(DpadDirection::Northwest),
+            DS4Buttons::DPAD_NONE => Ok(DpadDirection::None),
+            _ => Err(()),
+        }
     }
 }
 
@@ -390,7 +409,7 @@ impl DS4SpecialButtons {
     }
 }
 
-impl std::ops::BitOr<u8> for DS4SpecialButtons {
+impl BitOr<u8> for DS4SpecialButtons {
     type Output = Self;
 
     #[inline]
@@ -399,7 +418,7 @@ impl std::ops::BitOr<u8> for DS4SpecialButtons {
     }
 }
 
-impl std::ops::BitOrAssign<u8> for DS4SpecialButtons {
+impl BitOrAssign<u8> for DS4SpecialButtons {
     #[inline]
     fn bitor_assign(&mut self, rhs: u8) {
         self.0 |= rhs;
