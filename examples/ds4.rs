@@ -1,6 +1,6 @@
 use std::{thread, time};
 
-use vigem_client::{DS4Buttons, DS4ReportExBuilder, DS4SpecialButtons};
+use vigem_client::{BatteryStatus, DS4Buttons, DS4ReportExBuilder, DS4SpecialButtons, DS4Status};
 
 fn main() {
     // Connect to the ViGEmBus driver
@@ -37,6 +37,7 @@ fn main() {
             .trigger_r(((((elapsed * 1.5).cos() * 127.0) as i32) + 127) as u8)
             .buttons(DS4Buttons::new().cross(true).circle(true))
             .special(DS4SpecialButtons::new().ps_home(true))
+            .status(DS4Status::with_battery_status(BatteryStatus::Charging(8)))
             .build();
 
         let _ = target.update_ex(&report);
