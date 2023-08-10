@@ -10,6 +10,9 @@ use std::{
 ///
 /// This struct allows to build a set of buttons to be pressed, using either the builder pattern or
 /// the bitwise operators.
+/// 
+/// Buttons have associated constants, which can be used to set the state and the D-Pad direction can be set
+/// using the [`DpadDirection`] enum.
 ///
 /// # Examples
 ///
