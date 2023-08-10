@@ -201,6 +201,9 @@ pub struct DS4ReportEx {
     reserved: [u8; 3],
 }
 
+// Assert that the struct has the correct size.
+const _: [(); 63] = [(); std::mem::size_of::<DS4ReportEx>()];
+
 impl fmt::Debug for DS4ReportEx {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let buttons = DS4Buttons(self.buttons);
