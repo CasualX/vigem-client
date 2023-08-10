@@ -75,6 +75,7 @@ impl DS4TouchPoint {
     /// # use vigem_client::DS4TouchPoint;
     /// let point = DS4TouchPoint::new(1920, 942);
     /// ```
+    #[inline]
     pub fn new(x: u16, y: u16) -> Self {
         let x = x.min(1920);
         let y = y.min(942);
@@ -87,6 +88,7 @@ impl DS4TouchPoint {
     }
 
     /// Create a new inactive touch point.
+    #[inline]
     pub fn inactive() -> Self {
         DS4TouchPoint::default()
     }
@@ -109,6 +111,7 @@ impl DS4TouchPoint {
 
 impl Default for DS4TouchPoint {
     /// Create an inactive touch point.
+    #[inline]
     fn default() -> Self {
         DS4TouchPoint {
             contact: 0,
@@ -141,6 +144,7 @@ impl DS4TouchReport {
     /// # use vigem_client::{DS4TouchReport, DS4TouchPoint};
     /// let report = DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), None);
     /// ```
+    #[inline]
     pub fn new(
         timestamp: u8,
         point1: Option<DS4TouchPoint>,
@@ -154,6 +158,7 @@ impl DS4TouchReport {
 }
 
 impl Default for DS4TouchReport {
+    #[inline]
     fn default() -> Self {
         DS4TouchReport {
             timestamp: 0,
@@ -282,6 +287,7 @@ pub enum BatteryStatus {
 
 #[doc(hidden)]
 impl From<BatteryStatus> for u16 {
+    #[inline]
     fn from(status: BatteryStatus) -> Self {
         match status {
             BatteryStatus::Charging(capacity) => (capacity.min(10)) as u16,
@@ -294,6 +300,7 @@ impl From<BatteryStatus> for u16 {
 
 #[doc(hidden)]
 impl From<u16> for BatteryStatus {
+    #[inline]
     fn from(status: u16) -> Self {
         match status & 0xF {
             DS4Status::BATTERY_FULL => BatteryStatus::Full,
@@ -347,6 +354,7 @@ impl DS4Status {
     /// let status = DS4Status::with_battery_status(BatteryStatus::Charging(5));
     /// # assert_eq!(u16::from(status), DS4Status::CABLE_STATE | 5);
     /// ```
+    #[inline]
     pub fn with_battery_status(status: BatteryStatus) -> Self {
         DS4Status(DS4Status::CABLE_STATE | u16::from(status))
     }
@@ -360,6 +368,7 @@ impl Default for DS4Status {
 
 #[doc(hidden)]
 impl From<DS4Status> for u16 {
+    #[inline]
     fn from(status: DS4Status) -> Self {
         status.0
     }
@@ -397,38 +406,34 @@ pub struct DS4ReportBuilder {
 
 impl DS4ReportBuilder {
     /// Create a new builder.
+    #[inline]
     pub fn new() -> Self {
-        DS4ReportBuilder {
-            thumb_lx: None,
-            thumb_ly: None,
-            thumb_rx: None,
-            thumb_ry: None,
-            buttons: DS4Buttons::default(),
-            special: DS4SpecialButtons::default(),
-            trigger_l: None,
-            trigger_r: None,
-        }
+        Self::default()
     }
 
     /// Set the left thumb stick X axis.
+    #[inline]
     pub fn thumb_lx(mut self, value: u8) -> Self {
         self.thumb_lx = Some(value);
         self
     }
 
     /// Set the left thumb stick Y axis.
+    #[inline]
     pub fn thumb_ly(mut self, value: u8) -> Self {
         self.thumb_ly = Some(value);
         self
     }
 
     /// Set the right thumb stick X axis.
+    #[inline]
     pub fn thumb_rx(mut self, value: u8) -> Self {
         self.thumb_rx = Some(value);
         self
     }
 
     /// Set the right thumb stick Y axis.
+    #[inline]
     pub fn thumb_ry(mut self, value: u8) -> Self {
         self.thumb_ry = Some(value);
         self
@@ -442,6 +447,7 @@ impl DS4ReportBuilder {
     /// # use vigem_client::{DS4ReportBuilder, DS4Report, DS4Buttons};
     /// let report: DS4Report = DS4ReportBuilder::new().buttons(DS4Buttons::new().cross(true)).into();
     /// ```
+    #[inline]
     pub fn buttons(mut self, value: DS4Buttons) -> Self {
         self.buttons = value;
         self
@@ -455,24 +461,28 @@ impl DS4ReportBuilder {
     /// # use vigem_client::{DS4ReportBuilder, DS4SpecialButtons};
     /// let report = DS4ReportBuilder::new().special(DS4SpecialButtons::new().touchpad(true)).build();
     /// ```
+    #[inline]
     pub fn special(mut self, value: DS4SpecialButtons) -> Self {
         self.special = value;
         self
     }
 
     /// Set the left trigger.
+    #[inline]
     pub fn trigger_l(mut self, value: u8) -> Self {
         self.trigger_l = Some(value);
         self
     }
 
     /// Set the right trigger.
+    #[inline]
     pub fn trigger_r(mut self, value: u8) -> Self {
         self.trigger_r = Some(value);
         self
     }
 
     /// Build the report.
+    #[inline]
     pub fn build(self) -> DS4Report {
         DS4Report {
             thumb_lx: self.thumb_lx.unwrap_or(0x80),
@@ -489,11 +499,21 @@ impl DS4ReportBuilder {
 
 impl Default for DS4ReportBuilder {
     fn default() -> Self {
-        DS4ReportBuilder::new()
+        DS4ReportBuilder {
+            thumb_lx: None,
+            thumb_ly: None,
+            thumb_rx: None,
+            thumb_ry: None,
+            buttons: DS4Buttons::default(),
+            special: DS4SpecialButtons::default(),
+            trigger_l: None,
+            trigger_r: None,
+        }
     }
 }
 
 impl From<DS4ReportBuilder> for DS4Report {
+    #[inline]
     fn from(builder: DS4ReportBuilder) -> Self {
         builder.build()
     }
@@ -579,6 +599,7 @@ pub struct DS4ReportExBuilder {
 }
 
 impl DS4ReportExBuilder {
+    #[inline]
     pub fn new() -> Self {
         DS4ReportExBuilder {
             thumb_lx: None,
@@ -604,108 +625,126 @@ impl DS4ReportExBuilder {
     }
 
     /// Set the left thumb stick X axis.
+    #[inline]
     pub fn thumb_lx(mut self, value: u8) -> Self {
         self.thumb_lx = Some(value);
         self
     }
 
     /// Set the left thumb stick Y axis.
+    #[inline]
     pub fn thumb_ly(mut self, value: u8) -> Self {
         self.thumb_ly = Some(value);
         self
     }
 
     /// Set the right thumb stick X axis.
+    #[inline]
     pub fn thumb_rx(mut self, value: u8) -> Self {
         self.thumb_rx = Some(value);
         self
     }
 
     /// Set the right thumb stick Y axis.
+    #[inline]
     pub fn thumb_ry(mut self, value: u8) -> Self {
         self.thumb_ry = Some(value);
         self
     }
 
     /// Set the buttons.
+    #[inline]
     pub fn buttons(mut self, value: DS4Buttons) -> Self {
         self.buttons = value;
         self
     }
 
     /// Set the special buttons.
+    #[inline]
     pub fn special(mut self, value: DS4SpecialButtons) -> Self {
         self.special = value;
         self
     }
 
     /// Set the left trigger.
+    #[inline]
     pub fn trigger_l(mut self, value: u8) -> Self {
         self.trigger_l = Some(value);
         self
     }
 
     /// Set the right trigger.
+    #[inline]
     pub fn trigger_r(mut self, value: u8) -> Self {
         self.trigger_r = Some(value);
         self
     }
 
     /// Set the timestamp.
+    #[inline]
     pub fn timestamp(mut self, value: u16) -> Self {
         self.timestamp = Some(value);
         self
     }
 
     /// Set the temperature.
+    #[inline]
     pub fn temp(mut self, value: u8) -> Self {
         self.temp = Some(value);
         self
     }
 
     /// Set the gyroscope X axis.
+    #[inline]
     pub fn gyro_x(mut self, value: i16) -> Self {
         self.gyro_x = Some(value);
         self
     }
 
     /// Set the gyroscope Y axis.
+    #[inline]
     pub fn gyro_y(mut self, value: i16) -> Self {
         self.gyro_y = Some(value);
         self
     }
 
     /// Set the gyroscope Z axis.
+    #[inline]
     pub fn gyro_z(mut self, value: i16) -> Self {
         self.gyro_z = Some(value);
         self
     }
 
     /// Set the accelerometer X axis.
+    #[inline]
     pub fn accel_x(mut self, value: i16) -> Self {
         self.accel_x = Some(value);
         self
     }
 
     /// Set the accelerometer Y axis.
+    #[inline]
     pub fn accel_y(mut self, value: i16) -> Self {
         self.accel_y = Some(value);
         self
     }
 
     /// Set the accelerometer Z axis.
+    #[inline]
     pub fn accel_z(mut self, value: i16) -> Self {
         self.accel_z = Some(value);
         self
     }
 
     /// Set the status.
+    #[inline]
     pub fn status(mut self, value: DS4Status) -> Self {
         self.status = Some(value);
         self
     }
 
     /// Set the touch reports, with the most recent report first.
+    #[inline]
     pub fn touch_reports(
         mut self,
         current: Option<DS4TouchReport>,
@@ -720,6 +759,7 @@ impl DS4ReportExBuilder {
 
     /// Set the touch reports all at once with an array, with the most recent report first.
     /// The number of reports is in the range 0..3 and reflects the number of active reports in the array.
+    #[inline]
     pub fn all_touch_reports(mut self, num_reports: u8, reports: [DS4TouchReport; 3]) -> Self {
         self.num_touch_reports = num_reports.min(3);
         self.touch_reports = reports;
@@ -747,6 +787,7 @@ impl DS4ReportExBuilder {
     ///     .touch_reports(Some(DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), Some(DS4TouchPoint::new(22, 5)))), None, None)
     ///     .build();
     /// ```
+    #[inline]
     pub fn build(self) -> DS4ReportEx {
         DS4ReportEx {
             thumb_lx: self.thumb_lx.unwrap_or(0x80),

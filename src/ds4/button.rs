@@ -74,6 +74,7 @@ pub enum DpadDirection {
 }
 
 impl From<DpadDirection> for u16 {
+    #[inline]
     fn from(dpad: DpadDirection) -> Self {
         match dpad {
             DpadDirection::North => DS4Buttons::DPAD_NORTH,
@@ -90,6 +91,7 @@ impl From<DpadDirection> for u16 {
 }
 
 impl From<u16> for DpadDirection {
+    #[inline]
     fn from(dpad: u16) -> Self {
         match dpad {
             DS4Buttons::DPAD_NORTH => DpadDirection::North,
@@ -106,6 +108,7 @@ impl From<u16> for DpadDirection {
 }
 
 impl Default for DS4Buttons {
+    #[inline]
     fn default() -> Self {
         DS4Buttons(DS4Buttons::DPAD_NONE)
     }
@@ -158,6 +161,7 @@ impl DS4Buttons {
 }
 
 impl From<DS4Buttons> for u16 {
+    #[inline]
     fn from(buttons: DS4Buttons) -> Self {
         buttons.0
     }
@@ -166,12 +170,14 @@ impl From<DS4Buttons> for u16 {
 impl std::ops::BitOr<u16> for DS4Buttons {
     type Output = Self;
 
+    #[inline]
     fn bitor(self, rhs: u16) -> Self::Output {
         DS4Buttons(self.0 | rhs)
     }
 }
 
 impl std::ops::BitOrAssign<u16> for DS4Buttons {
+    #[inline]
     fn bitor_assign(&mut self, rhs: u16) {
         self.0 |= rhs;
     }
@@ -179,11 +185,13 @@ impl std::ops::BitOrAssign<u16> for DS4Buttons {
 
 impl DS4Buttons {
     /// Create a new [`DS4Buttons`] instance.
+    #[inline]
     pub fn new() -> Self {
         DS4Buttons::default()
     }
 
     /// Set the thumb right button state.
+    #[inline]
     pub fn thumb_right(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4Buttons::THUMB_RIGHT;
@@ -192,6 +200,7 @@ impl DS4Buttons {
     }
 
     /// Set the thumb left button state.
+    #[inline]
     pub fn thumb_left(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4Buttons::THUMB_LEFT;
@@ -200,6 +209,7 @@ impl DS4Buttons {
     }
 
     /// Set the options button state.
+    #[inline]
     pub fn options(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4Buttons::OPTIONS;
@@ -208,6 +218,7 @@ impl DS4Buttons {
     }
 
     /// Set the share button state.
+    #[inline]
     pub fn share(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4Buttons::SHARE;
@@ -216,6 +227,7 @@ impl DS4Buttons {
     }
 
     /// Set the trigger left button state.
+    #[inline]
     pub fn trigger_left(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4Buttons::TRIGGER_LEFT;
@@ -224,6 +236,7 @@ impl DS4Buttons {
     }
 
     /// Set the trigger right button state.
+    #[inline]
     pub fn trigger_right(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4Buttons::TRIGGER_RIGHT;
@@ -232,6 +245,7 @@ impl DS4Buttons {
     }
 
     /// Set the shoulder right button state.
+    #[inline]
     pub fn shoulder_right(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4Buttons::SHOULDER_RIGHT;
@@ -240,6 +254,7 @@ impl DS4Buttons {
     }
 
     /// Set the shoulder left button state.
+    #[inline]
     pub fn shoulder_left(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4Buttons::SHOULDER_LEFT;
@@ -248,6 +263,7 @@ impl DS4Buttons {
     }
 
     /// Set the triangle button state.
+    #[inline]
     pub fn triangle(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4Buttons::TRIANGLE;
@@ -256,6 +272,7 @@ impl DS4Buttons {
     }
 
     /// Set the circle button state.
+    #[inline]
     pub fn circle(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4Buttons::CIRCLE;
@@ -264,6 +281,7 @@ impl DS4Buttons {
     }
 
     /// Set the cross button state.
+    #[inline]
     pub fn cross(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4Buttons::CROSS;
@@ -272,6 +290,7 @@ impl DS4Buttons {
     }
 
     /// Set the square button state.
+    #[inline]
     pub fn square(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4Buttons::SQUARE;
@@ -280,6 +299,7 @@ impl DS4Buttons {
     }
 
     /// Set the D-Pad direction, with the [`DpadDirection`] enum.
+    #[inline]
     pub fn dpad(mut self, dpad: DpadDirection) -> Self {
         self.0 ^= u16::from(DpadDirection::None);
         self.0 |= u16::from(dpad);
@@ -323,23 +343,27 @@ impl DS4SpecialButtons {
 }
 
 impl Default for DS4SpecialButtons {
+    #[inline]
     fn default() -> Self {
         DS4SpecialButtons(0)
     }
 }
 
 impl From<DS4SpecialButtons> for u8 {
+    #[inline]
     fn from(buttons: DS4SpecialButtons) -> Self {
         buttons.0
     }
 }
 
 impl DS4SpecialButtons {
+    #[inline]
     pub fn new() -> Self {
         DS4SpecialButtons::default()
     }
 
     /// Set the mic mute button state.
+    #[inline]
     pub fn mic_mute(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4SpecialButtons::MIC_MUTE;
@@ -348,6 +372,7 @@ impl DS4SpecialButtons {
     }
 
     /// Set the touchpad button state.
+    #[inline]
     pub fn touchpad(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4SpecialButtons::TOUCHPAD;
@@ -356,6 +381,7 @@ impl DS4SpecialButtons {
     }
 
     /// Set the PS Home button state.
+    #[inline]
     pub fn ps_home(mut self, enable: bool) -> Self {
         if enable {
             self.0 |= DS4SpecialButtons::PS_HOME;
@@ -367,12 +393,14 @@ impl DS4SpecialButtons {
 impl std::ops::BitOr<u8> for DS4SpecialButtons {
     type Output = Self;
 
+    #[inline]
     fn bitor(self, rhs: u8) -> Self::Output {
         DS4SpecialButtons(self.0 | rhs)
     }
 }
 
 impl std::ops::BitOrAssign<u8> for DS4SpecialButtons {
+    #[inline]
     fn bitor_assign(&mut self, rhs: u8) {
         self.0 |= rhs;
     }
