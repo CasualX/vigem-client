@@ -134,9 +134,9 @@ impl DS4TouchReport {
     /// Create a new touch report, with optional touch points.
     /// The timestamp is in the range 0..255, and will be clamped to this range.
     /// The touch points are optional, and will be set to the default inactive touch point if not provided.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```rust
     /// # use vigem_client::{DS4TouchReport, DS4TouchPoint};
     /// let report = DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), None);
@@ -339,9 +339,9 @@ impl DS4Status {
     ///     - [`DS4Status::BATTERY_FULL`]: battery is full
     ///     - [`DS4Status::NOT_CHARGING`]: not charging due to Voltage or temperature error
     ///     - [`DS4Status::CHARGE_ERROR`]: charge error
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```rust
     /// # use vigem_client::{DS4Status, BatteryStatus};
     /// let status = DS4Status::with_battery_status(BatteryStatus::Charging(5));
@@ -504,36 +504,33 @@ impl From<DS4ReportBuilder> for DS4Report {
 /// # Touch reports
 ///
 /// The DS4 controller can send up to 3 touch reports at once, with the most recent one first.
-/// The builder has methods to set the most recent, previous and oldest touch reports,
-/// as well as a method to set all three at once.
+/// The builder has methods to set the most recent, previous and oldest touch reports optionally for each,
+/// as well as a method to set all three directly with an array.
+/// Touch reports are optional, and will be set to the default inactive touch report if not provided with their number set to 0.
 ///
 /// ## Examples
 ///
-/// ### With the methods
+/// ### With optional touch reports
 ///
 /// ```rust
 /// # use vigem_client::{DS4ReportExBuilder, DS4ReportEx, DS4Buttons, DS4SpecialButtons, DS4Status, DS4TouchReport, DS4TouchPoint, BatteryStatus};
 /// let report = DS4ReportExBuilder::new()
 ///    .thumb_lx(0x80)
 ///    .thumb_rx(0x80)
-///    // Set the most recent touch report
-///    .current_touch_report(DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), None))
-///    // Set the previous touch report
-///   .previous_touch_report(DS4TouchReport::new(0, Some(DS4TouchPoint::new(22, 5)), None))
-///    // Set the oldest touch report
-///   .oldest_touch_report(DS4TouchReport::new(0, None, None))
+///    // Set the most recent touch report only
+///    .touch_reports(Some(DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), None)), None, None)
 ///   .build();
 /// ```
-/// 
-/// ### All at once
-/// 
+///
+/// ### With the array of touch reports
+///
 /// ```rust
 /// # use vigem_client::{DS4ReportExBuilder, DS4ReportEx, DS4Buttons, DS4SpecialButtons, DS4Status, DS4TouchReport, DS4TouchPoint, BatteryStatus};
 /// let report = DS4ReportExBuilder::new()
 ///    .thumb_lx(0x80)
 ///    .thumb_rx(0x80)
-///   // Set all three touch reports
-///   .touch_reports([
+///   // Set all three touch reports but only the first two are used
+///   .all_touch_reports(2, [
 ///       DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), None),
 ///       DS4TouchReport::new(0, Some(DS4TouchPoint::new(22, 5)), None),
 ///       DS4TouchReport::new(0, None, None),
@@ -554,7 +551,6 @@ impl From<DS4ReportBuilder> for DS4Report {
 ///     .gyro_x(1900)
 ///     .accel_x(1900)
 ///     .status(DS4Status::with_battery_status(BatteryStatus::Charging(5)))
-///     .current_touch_report(DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), None))
 ///     .build();
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -709,26 +705,23 @@ impl DS4ReportExBuilder {
         self
     }
 
-    /// Set the most recent touch report.
-    pub fn current_touch_report(mut self, report: DS4TouchReport) -> Self {
-        self.touch_reports[0] = report;
+    /// Set the touch reports, with the most recent report first.
+    pub fn touch_reports(
+        mut self,
+        current: Option<DS4TouchReport>,
+        previous: Option<DS4TouchReport>,
+        oldest: Option<DS4TouchReport>,
+    ) -> Self {
+        let reports = [current, previous, oldest];
+        self.num_touch_reports = reports.iter().position(Option::is_none).unwrap_or(3) as u8;
+        self.touch_reports = reports.map(Option::unwrap_or_default);
         self
     }
 
-    /// Set the previous touch report.
-    pub fn previous_touch_report(mut self, report: DS4TouchReport) -> Self {
-        self.touch_reports[1] = report;
-        self
-    }
-
-    /// Set the oldest touch report.
-    pub fn oldest_touch_report(mut self, report: DS4TouchReport) -> Self {
-        self.touch_reports[2] = report;
-        self
-    }
-
-    /// Set the touch reports.
-    pub fn touch_reports(mut self, reports: [DS4TouchReport; 3]) -> Self {
+    /// Set the touch reports all at once with an array, with the most recent report first.
+    /// The number of reports is in the range 0..3 and reflects the number of active reports in the array.
+    pub fn all_touch_reports(mut self, num_reports: u8, reports: [DS4TouchReport; 3]) -> Self {
+        self.num_touch_reports = num_reports.min(3);
         self.touch_reports = reports;
         self
     }
@@ -751,7 +744,7 @@ impl DS4ReportExBuilder {
     ///     .accel_x(0)
     ///     .gyro_x(0)
     ///     .status(DS4Status::with_battery_status(BatteryStatus::Charging(9)))
-    ///     .current_touch_report(DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), None))
+    ///     .touch_reports(Some(DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), Some(DS4TouchPoint::new(22, 5)))), None, None)
     ///     .build();
     /// ```
     pub fn build(self) -> DS4ReportEx {
