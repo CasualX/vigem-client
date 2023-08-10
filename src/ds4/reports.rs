@@ -135,7 +135,7 @@ pub struct DS4TouchReport {
 
 impl DS4TouchReport {
     /// Create a new touch report, with optional touch points.
-    /// The timestamp is in the range 0..255, and will be clamped to this range.
+    /// The timestamp is in the range 0..255, and will be clamped to this range. It should be incremented for each new report.
     /// The touch points are optional, and will be set to the default inactive touch point if not provided.
     ///
     /// # Examples
@@ -596,7 +596,7 @@ pub struct DS4ReportExBuilder {
     accel_x: Option<i16>,
     accel_y: Option<i16>,
     accel_z: Option<i16>,
-    status: Option<DS4Status>,
+    status: DS4Status,
     num_touch_reports: u8,
     touch_reports: [DS4TouchReport; 3],
 }
@@ -604,27 +604,7 @@ pub struct DS4ReportExBuilder {
 impl DS4ReportExBuilder {
     #[inline]
     pub fn new() -> Self {
-        DS4ReportExBuilder {
-            thumb_lx: None,
-            thumb_ly: None,
-            thumb_rx: None,
-            thumb_ry: None,
-            buttons: DS4Buttons::default(),
-            special: DS4SpecialButtons::default(),
-            trigger_l: None,
-            trigger_r: None,
-            timestamp: None,
-            temp: None,
-            gyro_x: None,
-            gyro_y: None,
-            gyro_z: None,
-            accel_x: None,
-            accel_y: None,
-            accel_z: None,
-            status: None,
-            num_touch_reports: 0,
-            touch_reports: [DS4TouchReport::default(); 3],
-        }
+        Self::default()
     }
 
     /// Set the left thumb stick X axis.
@@ -742,7 +722,7 @@ impl DS4ReportExBuilder {
     /// Set the status.
     #[inline]
     pub fn status(mut self, value: DS4Status) -> Self {
-        self.status = Some(value);
+        self.status = value;
         self
     }
 
@@ -812,11 +792,37 @@ impl DS4ReportExBuilder {
             accel_y: self.accel_y.unwrap_or(0),
             accel_z: self.accel_z.unwrap_or(0),
             reserved2: [0; 5],
-            status: self.status.unwrap_or(DS4Status::default()).into(),
+            status: self.status.into(),
             reserved3: 0,
             num_touch_reports: self.num_touch_reports,
             touch_reports: self.touch_reports,
             reserved: [0; 3],
+        }
+    }
+}
+
+impl Default for DS4ReportExBuilder {
+    fn default() -> Self {
+        DS4ReportExBuilder {
+            thumb_lx: None,
+            thumb_ly: None,
+            thumb_rx: None,
+            thumb_ry: None,
+            buttons: DS4Buttons::default(),
+            special: DS4SpecialButtons::default(),
+            trigger_l: None,
+            trigger_r: None,
+            timestamp: None,
+            temp: None,
+            gyro_x: None,
+            gyro_y: None,
+            gyro_z: None,
+            accel_x: None,
+            accel_y: None,
+            accel_z: None,
+            status: DS4Status::default(),
+            num_touch_reports: 0,
+            touch_reports: [DS4TouchReport::default(); 3],
         }
     }
 }
