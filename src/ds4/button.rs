@@ -11,11 +11,9 @@ use std::fmt::Debug;
 ///
 /// ```rust
 /// # use vigem_client::{DS4Buttons, DpadDirection};
-///
 /// let buttons = DS4Buttons::new();
 /// let buttons = buttons.thumb_right(true).cross(true).dpad(DpadDirection::South);
 /// let buttons = buttons | DS4Buttons::SHOULDER_LEFT;
-///
 /// # assert_eq!(u16::from(buttons), DS4Buttons::THUMB_RIGHT | DS4Buttons::CROSS | DS4Buttons::DPAD_SOUTH | DS4Buttons::SHOULDER_LEFT);
 /// ```
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -58,10 +56,8 @@ impl Debug for DS4Buttons {
 ///
 /// ```rust
 /// # use vigem_client::{DS4Buttons, DpadDirection};
-///
 /// let buttons = DS4Buttons::new();
 /// let buttons = buttons.dpad(DpadDirection::South);
-///
 /// # assert_eq!(u16::from(buttons), DS4Buttons::DPAD_SOUTH);
 /// ```
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -300,11 +296,9 @@ impl DS4Buttons {
 ///
 /// ```rust
 /// # use vigem_client::DS4SpecialButtons;
-///
 /// let buttons = DS4SpecialButtons::new();
 /// let buttons = buttons.mic_mute(true).ps_home(true);
 /// let buttons = buttons | DS4SpecialButtons::TOUCHPAD;
-///
 /// # assert_eq!(u8::from(buttons), DS4SpecialButtons::MIC_MUTE | DS4SpecialButtons::PS_HOME | DS4SpecialButtons::TOUCHPAD);
 /// ```
 #[derive(Copy, Clone, Eq, PartialEq)]

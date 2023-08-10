@@ -2,9 +2,16 @@
 
 use super::{DS4Buttons, DS4SpecialButtons};
 
-use std::{convert::TryInto, fmt};
+use std::fmt;
 
 /// DualShock4 HID basic input report.
+///
+/// It is used to update the controller state with the [`crate::DualShock4Wired::update`] method.
+/// It contains the thumb stick axes, the buttons, the special buttons and the triggers.
+/// An extended report which contains the complete report normally sent by the controller is also available:
+/// [`DS4ReportEx`].
+///
+/// It shouldn't be constructed directly, but using [`DS4ReportBuilder`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(C)]
 pub struct DS4Report {
@@ -35,15 +42,8 @@ impl Default for DS4Report {
 /// DualShock4 touch point.
 /// The touch point is in the range 0..1920 for the X coordinate and 0..942 for the Y coordinate.
 ///
-/// It is recommended to use [`DS4TouchPoint::new`] to create a new touch point.
-///
-/// # Examples
-///
-/// ```rust
-/// # use vigem_client::DS4TouchPoint;
-///
-/// let point = DS4TouchPoint::new(true, 1920, 942);
-/// ```
+/// It is recommended to use [`DS4TouchPoint::new`] to create a new touch point,
+/// which can then be used to create a [`DS4TouchReport`].
 #[derive(Copy, Clone, Eq, PartialEq)]
 #[repr(C, packed)]
 pub struct DS4TouchPoint {
@@ -65,14 +65,30 @@ impl fmt::Debug for DS4TouchPoint {
 }
 
 impl DS4TouchPoint {
-    /// Create a new touch point.
-    pub fn new(active: bool, x: u16, y: u16) -> Self {
+    /// Create a new active touch point.
+    /// The coordinates are in the range 0..1920 for the X coordinate and 0..942 for the Y coordinate,
+    /// and will be clamped to this range.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use vigem_client::DS4TouchPoint;
+    /// let point = DS4TouchPoint::new(1920, 942);
+    /// ```
+    pub fn new(x: u16, y: u16) -> Self {
+        let x = x.min(1920);
+        let y = y.min(942);
         DS4TouchPoint {
-            contact: if active { 0 } else { 1 << 7 },
+            contact: 1 << 7,
             x_lo: (x & 0xFF) as u8,
             x_hi_y_lo: (((x >> 8) & 0xF) << 4) as u8 | ((y & 0xF) as u8),
             y_hi: (y >> 4) as u8,
         }
+    }
+
+    /// Create a new inactive touch point.
+    pub fn inactive() -> Self {
+        DS4TouchPoint::default()
     }
 
     /// Returns if the touch point is active.
@@ -92,6 +108,7 @@ impl DS4TouchPoint {
 }
 
 impl Default for DS4TouchPoint {
+    /// Create an inactive touch point.
     fn default() -> Self {
         DS4TouchPoint {
             contact: 0,
@@ -103,17 +120,9 @@ impl Default for DS4TouchPoint {
 }
 
 /// DualShock4 touch report.
-/// The touch report contains two touch points.
+/// A touch report contains two touch points, which can be created using [`DS4TouchPoint::new`].
 ///
 /// It is recommended to use [`DS4TouchReport::new`] to create a new touch report.
-///
-/// # Examples
-///
-/// ```rust
-/// # use vigem_client::{DS4TouchReport, DS4TouchPoint};
-///
-/// let report = DS4TouchReport::new(0, Some(DS4TouchPoint::new(true, 1920, 942)), None);
-/// ```
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(C)]
 pub struct DS4TouchReport {
@@ -122,7 +131,16 @@ pub struct DS4TouchReport {
 }
 
 impl DS4TouchReport {
-    /// Create a new touch report.
+    /// Create a new touch report, with optional touch points.
+    /// The timestamp is in the range 0..255, and will be clamped to this range.
+    /// The touch points are optional, and will be set to the default inactive touch point if not provided.
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// # use vigem_client::{DS4TouchReport, DS4TouchPoint};
+    /// let report = DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), None);
+    /// ```
     pub fn new(
         timestamp: u8,
         point1: Option<DS4TouchPoint>,
@@ -145,6 +163,12 @@ impl Default for DS4TouchReport {
 }
 
 /// DualShock4 v1 complete HID Input report.
+/// It is used to update the controller state with the [`crate::DualShock4Wired::update_ex`] method.
+///
+/// It contains all the information of the basic report, plus the battery status, the touch reports and
+/// the gyroscope and accelerometer data.
+///
+/// It shouldn't be constructed directly, but using [`DS4ReportExBuilder`].
 #[derive(Copy, Clone, Eq, PartialEq)]
 #[repr(C, packed)]
 pub struct DS4ReportEx {
@@ -248,18 +272,34 @@ impl Default for DS4ReportEx {
 pub enum BatteryStatus {
     /// Charging, with the capacity in the range 0..10 reflecting the charge level in 10% steps.
     Charging(u8),
+    /// Battery is full.
     Full,
+    /// Not charging due to Voltage or temperature error.
     Error,
-    Unknown,
+    /// Not charging.
+    NotCharging,
 }
 
+#[doc(hidden)]
 impl From<BatteryStatus> for u16 {
     fn from(status: BatteryStatus) -> Self {
         match status {
             BatteryStatus::Charging(capacity) => (capacity.min(10)) as u16,
             BatteryStatus::Full => DS4Status::BATTERY_FULL,
             BatteryStatus::Error => DS4Status::CHARGE_ERROR,
-            BatteryStatus::Unknown => DS4Status::NOT_CHARGING,
+            BatteryStatus::NotCharging => DS4Status::NOT_CHARGING,
+        }
+    }
+}
+
+#[doc(hidden)]
+impl From<u16> for BatteryStatus {
+    fn from(status: u16) -> Self {
+        match status & 0xF {
+            DS4Status::BATTERY_FULL => BatteryStatus::Full,
+            DS4Status::NOT_CHARGING => BatteryStatus::NotCharging,
+            DS4Status::CHARGE_ERROR => BatteryStatus::Error,
+            capacity => BatteryStatus::Charging(capacity as u8),
         }
     }
 }
@@ -268,28 +308,12 @@ impl From<BatteryStatus> for u16 {
 ///
 /// The status reflects the battery status, the cable state and the dongle state.
 /// It can be constructed using [`DS4Status::with_battery_status`].
-///
-/// # Examples
-///
-/// ```rust
-/// # use vigem_client::{DS4Status, BatteryStatus};
-///
-/// let status = DS4Status::with_battery_status(BatteryStatus::Charging(5));
-///
-/// # assert_eq!(u16::from(status), DS4Status::CABLE_STATE | 5);
-/// ```
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct DS4Status(u16);
 
 impl fmt::Debug for DS4Status {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let battery_status = match self.0 & 0xF {
-            DS4Status::BATTERY_FULL => BatteryStatus::Full,
-            DS4Status::NOT_CHARGING => BatteryStatus::Unknown,
-            DS4Status::CHARGE_ERROR => BatteryStatus::Error,
-            capacity => BatteryStatus::Charging(capacity as u8),
-        };
-
+        let battery_status = BatteryStatus::from(self.0 & 0xF);
         f.debug_struct("DS4Status")
             .field("cable_state", &(self.0 & DS4Status::CABLE_STATE != 0))
             .field("dongle_state", &(self.0 & DS4Status::_DONGLE_STATE != 0))
@@ -303,18 +327,26 @@ impl DS4Status {
 
     pub const CABLE_STATE: u16 = 1 << 4;
 
-    pub const BATTERY_FULL: u16 = 11; // battery is full
-    pub const NOT_CHARGING: u16 = 14; // not charging due to Voltage or temperature error
     pub const CHARGE_ERROR: u16 = 15; // charge error
+    pub const NOT_CHARGING: u16 = 14; // not charging due to Voltage or temperature error
+    pub const BATTERY_FULL: u16 = 11; // battery is full
 }
 
 impl DS4Status {
-    /// Create a new [`DS4Status`], with battery status `status` set either to:
+    /// Create a new [`DS4Status`], with cable connected and status set either to:
     /// - the capacity, if `status` is in the range 0..10
     /// - a special status, if `status` is in the range 11..15:
     ///     - [`DS4Status::BATTERY_FULL`]: battery is full
     ///     - [`DS4Status::NOT_CHARGING`]: not charging due to Voltage or temperature error
     ///     - [`DS4Status::CHARGE_ERROR`]: charge error
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// # use vigem_client::{DS4Status, BatteryStatus};
+    /// let status = DS4Status::with_battery_status(BatteryStatus::Charging(5));
+    /// # assert_eq!(u16::from(status), DS4Status::CABLE_STATE | 5);
+    /// ```
     pub fn with_battery_status(status: BatteryStatus) -> Self {
         DS4Status(DS4Status::CABLE_STATE | u16::from(status))
     }
@@ -326,6 +358,7 @@ impl Default for DS4Status {
     }
 }
 
+#[doc(hidden)]
 impl From<DS4Status> for u16 {
     fn from(status: DS4Status) -> Self {
         status.0
@@ -350,7 +383,7 @@ impl From<DS4Status> for u16 {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[must_use = "This struct serves as a builder,
-              and must be consumed by calling into()"]
+              and must be consumed by calling either .build() or .into()"]
 pub struct DS4ReportBuilder {
     thumb_lx: Option<u8>,
     thumb_ly: Option<u8>,
@@ -406,8 +439,8 @@ impl DS4ReportBuilder {
     /// # Examples
     /// ```rust
     ///
-    /// # use vigem_client::{DS4ReportBuilder, DS4Buttons};
-    /// let report = DS4ReportBuilder::new().buttons(DS4Buttons::new().cross(true));
+    /// # use vigem_client::{DS4ReportBuilder, DS4Report, DS4Buttons};
+    /// let report: DS4Report = DS4ReportBuilder::new().buttons(DS4Buttons::new().cross(true)).into();
     /// ```
     pub fn buttons(mut self, value: DS4Buttons) -> Self {
         self.buttons = value;
@@ -420,7 +453,6 @@ impl DS4ReportBuilder {
     ///
     /// ```rust
     /// # use vigem_client::{DS4ReportBuilder, DS4SpecialButtons};
-    ///
     /// let report = DS4ReportBuilder::new().special(DS4SpecialButtons::new().touchpad(true)).build();
     /// ```
     pub fn special(mut self, value: DS4SpecialButtons) -> Self {
@@ -469,11 +501,50 @@ impl From<DS4ReportBuilder> for DS4Report {
 
 /// A builder for [`DS4ReportEx`].
 ///
+/// # Touch reports
+///
+/// The DS4 controller can send up to 3 touch reports at once, with the most recent one first.
+/// The builder has methods to set the most recent, previous and oldest touch reports,
+/// as well as a method to set all three at once.
+///
+/// ## Examples
+///
+/// ### With the methods
+///
+/// ```rust
+/// # use vigem_client::{DS4ReportExBuilder, DS4ReportEx, DS4Buttons, DS4SpecialButtons, DS4Status, DS4TouchReport, DS4TouchPoint, BatteryStatus};
+/// let report = DS4ReportExBuilder::new()
+///    .thumb_lx(0x80)
+///    .thumb_rx(0x80)
+///    // Set the most recent touch report
+///    .current_touch_report(DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), None))
+///    // Set the previous touch report
+///   .previous_touch_report(DS4TouchReport::new(0, Some(DS4TouchPoint::new(22, 5)), None))
+///    // Set the oldest touch report
+///   .oldest_touch_report(DS4TouchReport::new(0, None, None))
+///   .build();
+/// ```
+/// 
+/// ### All at once
+/// 
+/// ```rust
+/// # use vigem_client::{DS4ReportExBuilder, DS4ReportEx, DS4Buttons, DS4SpecialButtons, DS4Status, DS4TouchReport, DS4TouchPoint, BatteryStatus};
+/// let report = DS4ReportExBuilder::new()
+///    .thumb_lx(0x80)
+///    .thumb_rx(0x80)
+///   // Set all three touch reports
+///   .touch_reports([
+///       DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), None),
+///       DS4TouchReport::new(0, Some(DS4TouchPoint::new(22, 5)), None),
+///       DS4TouchReport::new(0, None, None),
+///   ])
+///   .build();
+/// ```
+///
 /// # Examples
 ///
 /// ```rust
 /// # use vigem_client::{DS4ReportExBuilder, DS4ReportEx, DS4Buttons, DS4SpecialButtons, DS4Status, DS4TouchReport, DS4TouchPoint, BatteryStatus};
-///
 /// let report = DS4ReportExBuilder::new()
 ///     .thumb_lx(0x80)
 ///     .thumb_rx(0x80)
@@ -483,12 +554,12 @@ impl From<DS4ReportBuilder> for DS4Report {
 ///     .gyro_x(1900)
 ///     .accel_x(1900)
 ///     .status(DS4Status::with_battery_status(BatteryStatus::Charging(5)))
-///     .touch_reports(&[DS4TouchReport::new(0, Some(DS4TouchPoint::new(true, 1920, 942)), None)])
+///     .current_touch_report(DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), None))
 ///     .build();
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[must_use = "This struct serves as a builder,
-              and must be consumed by calling into()"]
+              and must be consumed by calling either .build() or .into()"]
 pub struct DS4ReportExBuilder {
     thumb_lx: Option<u8>,
     thumb_ly: Option<u8>,
@@ -638,20 +709,27 @@ impl DS4ReportExBuilder {
         self
     }
 
+    /// Set the most recent touch report.
+    pub fn current_touch_report(mut self, report: DS4TouchReport) -> Self {
+        self.touch_reports[0] = report;
+        self
+    }
+
+    /// Set the previous touch report.
+    pub fn previous_touch_report(mut self, report: DS4TouchReport) -> Self {
+        self.touch_reports[1] = report;
+        self
+    }
+
+    /// Set the oldest touch report.
+    pub fn oldest_touch_report(mut self, report: DS4TouchReport) -> Self {
+        self.touch_reports[2] = report;
+        self
+    }
+
     /// Set the touch reports.
-    pub fn touch_reports(mut self, value: &[DS4TouchReport]) -> Self {
-        self.num_touch_reports = value.len().try_into().unwrap();
-        self.touch_reports = value
-            .iter()
-            .take(3)
-            .chain(
-                std::iter::repeat(&DS4TouchReport::default())
-                    .take(3usize.saturating_sub(value.len())),
-            )
-            .copied()
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
+    pub fn touch_reports(mut self, reports: [DS4TouchReport; 3]) -> Self {
+        self.touch_reports = reports;
         self
     }
 
@@ -661,7 +739,6 @@ impl DS4ReportExBuilder {
     ///
     /// ```rust
     /// # use vigem_client::{DS4ReportExBuilder, DS4ReportEx, DS4Buttons, DS4SpecialButtons, DS4Status, DS4TouchReport, DS4TouchPoint, BatteryStatus};
-    ///
     /// let report = DS4ReportExBuilder::new()
     ///     .thumb_lx(0x80)
     ///     .thumb_rx(0x80)
@@ -674,7 +751,7 @@ impl DS4ReportExBuilder {
     ///     .accel_x(0)
     ///     .gyro_x(0)
     ///     .status(DS4Status::with_battery_status(BatteryStatus::Charging(9)))
-    ///     .touch_reports(&[DS4TouchReport::new(0, Some(DS4TouchPoint::new(true, 1920, 942)), None)])
+    ///     .current_touch_report(DS4TouchReport::new(0, Some(DS4TouchPoint::new(1920, 942)), None))
     ///     .build();
     /// ```
     pub fn build(self) -> DS4ReportEx {
