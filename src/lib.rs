@@ -130,6 +130,5 @@ impl TargetId {
 	/// Default vender and product ids for a wired Xbox360 target.
 	pub const XBOX360_WIRED: TargetId = TargetId { vendor: 0x045E, product: 0x028E };
 	/// Default vender and product ids for a wired DualShock4 target.
-	#[cfg(feature = "unstable_ds4")]
 	pub const DUALSHOCK4_WIRED: TargetId = TargetId { vendor: 0x054C, product: 0x05C4 };
 }
