@@ -291,19 +291,19 @@ pub enum DpadDirection {
     /// D-Pad North direction.
     North = DS4Buttons::DPAD_NORTH,
     /// D-Pad North-East direction.
-    Northeast = DS4Buttons::DPAD_NORTHEAST,
+    NorthEast = DS4Buttons::DPAD_NORTHEAST,
     /// D-Pad East direction.
     East = DS4Buttons::DPAD_EAST,
     /// D-Pad South-East direction.
-    Southeast = DS4Buttons::DPAD_SOUTHEAST,
+    SouthEast = DS4Buttons::DPAD_SOUTHEAST,
     /// D-Pad South direction.
     South = DS4Buttons::DPAD_SOUTH,
     /// D-Pad South-West direction.
-    Southwest = DS4Buttons::DPAD_SOUTHWEST,
+    SouthWest = DS4Buttons::DPAD_SOUTHWEST,
     /// D-Pad West direction.
     West = DS4Buttons::DPAD_WEST,
     /// D-Pad North-West direction.
-    Northwest = DS4Buttons::DPAD_NORTHWEST,
+    NorthWest = DS4Buttons::DPAD_NORTHWEST,
     /// D-Pad neutral position.
     None = DS4Buttons::DPAD_NONE,
 }
