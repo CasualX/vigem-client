@@ -316,13 +316,13 @@ impl TryFrom<u16> for DpadDirection {
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         match value {
             DS4Buttons::DPAD_NORTH => Ok(DpadDirection::North),
-            DS4Buttons::DPAD_NORTHEAST => Ok(DpadDirection::Northeast),
+            DS4Buttons::DPAD_NORTHEAST => Ok(DpadDirection::NorthEast),
             DS4Buttons::DPAD_EAST => Ok(DpadDirection::East),
-            DS4Buttons::DPAD_SOUTHEAST => Ok(DpadDirection::Southeast),
+            DS4Buttons::DPAD_SOUTHEAST => Ok(DpadDirection::SouthEast),
             DS4Buttons::DPAD_SOUTH => Ok(DpadDirection::South),
-            DS4Buttons::DPAD_SOUTHWEST => Ok(DpadDirection::Southwest),
+            DS4Buttons::DPAD_SOUTHWEST => Ok(DpadDirection::SouthWest),
             DS4Buttons::DPAD_WEST => Ok(DpadDirection::West),
-            DS4Buttons::DPAD_NORTHWEST => Ok(DpadDirection::Northwest),
+            DS4Buttons::DPAD_NORTHWEST => Ok(DpadDirection::NorthWest),
             DS4Buttons::DPAD_NONE => Ok(DpadDirection::None),
             _ => Err(()),
         }
